@@ -284,13 +284,36 @@ def collect_hw_data(root):
                     continue
                 temp_val = int(t["value"])
                 break
-        # Shorten drive name
+        # Shorten drive name aggressively for display
         raw_name = hdd.get("Text", "?").strip()
-        short = raw_name.replace("Samsung ", "").replace("SSD ", "")
-        short = short.replace("TOSHIBA ", "T:").replace("WDC ", "WD:")
+        short = raw_name
+        # Remove common prefixes
+        for prefix in ["Samsung ", "SSD ", "TOSHIBA ", "WDC ", "Seagate ", "Western Digital ",
+                        "HGST ", "Crucial ", "Kingston ", "Intel ", "Micron ", "SK hynix "]:
+            short = short.replace(prefix, "")
+        # Remove common suffixes/noise
+        for noise in [" Series", " SSD", " NVMe", " SATA"]:
+            short = short.replace(noise, "")
+        # Take first word only
         short = short.split()[0] if short else "?"
-        if len(short) > 10:
-            short = short[:10]
+        # Truncate long model numbers (e.g. ST24000NM007H -> ST24T)
+        if len(short) > 7:
+            # Try to make it meaningful: keep prefix + capacity hint
+            if short.startswith("ST") and any(c.isdigit() for c in short):
+                # Seagate: ST + capacity in TB estimate
+                digits = ''.join(c for c in short if c.isdigit())
+                if digits:
+                    gb = int(digits[:5]) if len(digits) >= 5 else int(digits)
+                    if gb > 1000:
+                        short = f"ST{gb//1000}T"
+                    else:
+                        short = f"ST{gb}G"
+            elif short.startswith("MG") or short.startswith("MD"):
+                short = short[:6]
+            else:
+                short = short[:7]
+        if len(short) > 8:
+            short = short[:8]
         # Drive size
         data_group = find_sensor_group(hdd, "Data")
         total_gb = 0

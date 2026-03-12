@@ -48,7 +48,7 @@
 #define NET_Y         (STORAGE_Y + STORAGE_H + 2)
 #define NET_H         22
 #define BOTTOM_Y      (NET_Y + NET_H + 2)
-#define BOTTOM_H      40  // Fans + disk temps
+#define BOTTOM_H      (SCREEN_H - BOTTOM_Y)  // Use all remaining space
 
 // === Back button (detail screens) ===
 #define BACK_BTN_W    50

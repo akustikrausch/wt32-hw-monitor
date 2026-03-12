@@ -286,18 +286,18 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
     _lcd->drawString(buf, lx + COL_LEFT_W - 45, ly);
 
     ly += BAR_H + 4;
-    snprintf(buf, sizeof(buf), "%.0fC ", data.cpu_temp);
+    snprintf(buf, sizeof(buf), "%.0f\xB0""C ", data.cpu_temp);
     _lcd->setFont(&fonts::Font2);
     _lcd->setTextColor(tempColor(data.cpu_temp), COL_BG);
     _lcd->drawString(buf, lx + 4, ly);
 
     snprintf(buf, sizeof(buf), "%.0fMHz ", data.cpu_clock);
     _lcd->setTextColor(COL_CYAN, COL_BG);
-    _lcd->drawString(buf, lx + 55, ly);
+    _lcd->drawString(buf, lx + 60, ly);
 
     snprintf(buf, sizeof(buf), "%.0fW  ", data.cpu_power);
     _lcd->setTextColor(COL_ORANGE, COL_BG);
-    _lcd->drawString(buf, lx + 148, ly);
+    _lcd->drawString(buf, lx + 155, ly);
 
     ly += 20;
     drawGraph(lx + 4, ly, GRAPH_W, GRAPH_H, _cpu_history, HISTORY_LEN, COL_CYAN);
@@ -314,7 +314,7 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
     _lcd->drawString(buf, rx + COL_RIGHT_W - 45, ry);
 
     ry += BAR_H + 4;
-    snprintf(buf, sizeof(buf), "%.0fC ", data.gpu_temp);
+    snprintf(buf, sizeof(buf), "%.0f\xB0""C ", data.gpu_temp);
     _lcd->setFont(&fonts::Font2);
     _lcd->setTextColor(tempColor(data.gpu_temp), COL_BG);
     _lcd->drawString(buf, rx + 4, ry);
@@ -376,38 +376,47 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
 
     // ========== Bottom Section: Fans + Disk Temps ==========
     int by = BOTTOM_Y + 4;
-    _lcd->setFont(&fonts::Font0);
+    _lcd->setFont(&fonts::Font2);
 
+    // Fans row
     for (int i = 0; i < 2; i++) {
-        int fx = 6 + i * 100;
+        int fx = 6 + i * 150;
         if (data.fan[i] >= 0) {
-            snprintf(buf, sizeof(buf), "FAN%d:%dRPM ", i + 1, data.fan[i]);
+            snprintf(buf, sizeof(buf), "FAN%d: %d RPM  ", i + 1, data.fan[i]);
             _lcd->setTextColor(COL_TEXT, COL_BG);
         } else {
-            snprintf(buf, sizeof(buf), "FAN%d:---   ", i + 1);
+            snprintf(buf, sizeof(buf), "FAN%d: ---      ", i + 1);
             _lcd->setTextColor(COL_DIVIDER, COL_BG);
         }
         _lcd->drawString(buf, fx, by);
     }
 
-    int dtx = 210;
-    int dty = by;
-    int col_w = 68;
-    int cols = (SCREEN_W - dtx) / col_w;
+    // Disk temperatures - 2 columns, Font2, with °C
+    int dty = by + 22;
+    int col1x = 6;
+    int col2x = SCREEN_W / 2 + 4;
 
     for (int i = 0; i < data.disk_count && i < 8; i++) {
-        int cx = dtx + (i % cols) * col_w;
-        int cy = dty + (i / cols) * 12;
+        int cx = (i % 2 == 0) ? col1x : col2x;
+        int cy = dty + (i / 2) * 20;
 
+        if (cy + 16 > SCREEN_H) break;  // Don't draw outside screen
+
+        _lcd->setFont(&fonts::Font2);
+        // Disk name in gray
+        snprintf(buf, sizeof(buf), "%-8s", data.disk_name[i]);
+        _lcd->setTextColor(COL_LABEL, COL_BG);
+        _lcd->drawString(buf, cx, cy);
+
+        // Temp in color with °C
         if (data.disk_temp[i] >= 0) {
-            uint16_t tc = tempColor((float)data.disk_temp[i]);
-            snprintf(buf, sizeof(buf), "%s:%dC", data.disk_name[i], data.disk_temp[i]);
-            _lcd->setTextColor(tc, COL_BG);
+            snprintf(buf, sizeof(buf), "%d\xB0""C  ", data.disk_temp[i]);
+            _lcd->setTextColor(tempColor((float)data.disk_temp[i]), COL_BG);
         } else {
-            snprintf(buf, sizeof(buf), "%s:--", data.disk_name[i]);
+            snprintf(buf, sizeof(buf), "--\xB0""C  ");
             _lcd->setTextColor(COL_DIVIDER, COL_BG);
         }
-        _lcd->drawString(buf, cx, cy);
+        _lcd->drawString(buf, cx + 100, cy);
     }
 
     // Connection dot (top right corner)
@@ -445,7 +454,7 @@ void PCMonitorDisplay::drawCpuDetail(const HWData &data) {
     _lcd->drawString(buf, 10, y);
 
     // Large temp
-    snprintf(buf, sizeof(buf), "  %.1fC  ", data.cpu_temp);
+    snprintf(buf, sizeof(buf), "  %.1f\xB0""C  ", data.cpu_temp);
     _lcd->setTextColor(tempColor(data.cpu_temp), COL_BG);
     _lcd->drawString(buf, 200, y);
 
@@ -453,7 +462,7 @@ void PCMonitorDisplay::drawCpuDetail(const HWData &data) {
 
     // Stats row
     _lcd->setFont(&fonts::Font2);
-    snprintf(buf, sizeof(buf), "Clock: %.0f MHz   ", data.cpu_clock);
+    snprintf(buf, sizeof(buf), "Clock: %.0f MHz  ", data.cpu_clock);
     _lcd->setTextColor(COL_CYAN, COL_BG);
     _lcd->drawString(buf, 10, y);
 
@@ -463,7 +472,7 @@ void PCMonitorDisplay::drawCpuDetail(const HWData &data) {
 
     y += 20;
 
-    snprintf(buf, sizeof(buf), "Voltage: %.3f V   ", data.cpu_voltage);
+    snprintf(buf, sizeof(buf), "Voltage: %.3f V  ", data.cpu_voltage);
     _lcd->setTextColor(COL_LABEL, COL_BG);
     _lcd->drawString(buf, 10, y);
 
@@ -534,7 +543,7 @@ void PCMonitorDisplay::drawGpuDetail(const HWData &data) {
     _lcd->setTextColor(gpuCol, COL_BG);
     _lcd->drawString(buf, 10, y);
 
-    snprintf(buf, sizeof(buf), "  %.1fC  ", data.gpu_temp);
+    snprintf(buf, sizeof(buf), "  %.1f\xB0""C  ", data.gpu_temp);
     _lcd->setTextColor(tempColor(data.gpu_temp), COL_BG);
     _lcd->drawString(buf, 200, y);
 
@@ -558,7 +567,7 @@ void PCMonitorDisplay::drawGpuDetail(const HWData &data) {
     _lcd->drawString(buf, 10, y);
 
     if (data.gpu_hotspot > 0) {
-        snprintf(buf, sizeof(buf), "Hot Spot: %.0fC   ", data.gpu_hotspot);
+        snprintf(buf, sizeof(buf), "Hot Spot: %.0f\xB0""C  ", data.gpu_hotspot);
         _lcd->setTextColor(tempColor(data.gpu_hotspot), COL_BG);
         _lcd->drawString(buf, 200, y);
     }
@@ -743,12 +752,12 @@ void PCMonitorDisplay::drawDiskDetail(const HWData &data) {
 
         // Temp
         if (data.disk_temp[i] >= 0) {
-            snprintf(buf, sizeof(buf), "%dC  ", data.disk_temp[i]);
+            snprintf(buf, sizeof(buf), "%d\xB0""C  ", data.disk_temp[i]);
             _lcd->setTextColor(tempColor((float)data.disk_temp[i]), COL_BG);
             _lcd->drawString(buf, 220, y);
         } else {
             _lcd->setTextColor(COL_DIVIDER, COL_BG);
-            _lcd->drawString("--C ", 220, y);
+            _lcd->drawString("--\xB0""C ", 220, y);
         }
 
         // Small bar showing relative size contribution
