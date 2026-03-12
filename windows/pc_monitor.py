@@ -268,31 +268,123 @@ def collect_hw_data(root):
     storage_used_tb = (storage_total_gb - storage_free_gb) / 1000.0
     storage_free_tb = storage_free_gb / 1000.0
 
-    # Disk temperatures — get temp + short name for each drive
+    # Disk details — temp + short name + size for each drive
     disk_temps = []
     disk_names = []
+    disk_sizes = []  # Total GB per drive
     for hdd in hdd_nodes:
+        # Temperature
         temp_group = find_sensor_group(hdd, "Temperatures")
+        temp_val = -1
         if temp_group:
             temps_list = get_all_sensor_values(temp_group)
-            # Use first temp (Composite or Temperature)
-            temp_val = -1
             for t in temps_list:
                 name_l = t["name"].lower()
                 if "warning" in name_l or "critical" in name_l or "resolution" in name_l or "limit" in name_l:
                     continue
                 temp_val = int(t["value"])
                 break
-            # Shorten drive name
-            raw_name = hdd.get("Text", "?").strip()
-            # Extract short model name
-            short = raw_name.replace("Samsung ", "").replace("SSD ", "")
-            short = short.replace("TOSHIBA ", "T:").replace("WDC ", "WD:")
-            short = short.split()[0] if short else "?"
-            if len(short) > 10:
-                short = short[:10]
-            disk_temps.append(temp_val)
-            disk_names.append(short)
+        # Shorten drive name
+        raw_name = hdd.get("Text", "?").strip()
+        short = raw_name.replace("Samsung ", "").replace("SSD ", "")
+        short = short.replace("TOSHIBA ", "T:").replace("WDC ", "WD:")
+        short = short.split()[0] if short else "?"
+        if len(short) > 10:
+            short = short[:10]
+        # Drive size
+        data_group = find_sensor_group(hdd, "Data")
+        total_gb = 0
+        if data_group:
+            val = get_sensor_value(data_group, "total space")
+            if val is not None:
+                total_gb = round(val, 0)
+        disk_temps.append(temp_val)
+        disk_names.append(short)
+        disk_sizes.append(int(total_gb))
+
+    # Network — find network adapter with throughput data
+    net_dl = 0.0  # KB/s
+    net_ul = 0.0  # KB/s
+    net_nodes = find_hw_node(root, "network.png")
+    if not net_nodes:
+        net_nodes = find_hw_node(root, "nic.png")
+    for net in net_nodes:
+        throughput = find_sensor_group(net, "Throughput")
+        if throughput is None:
+            throughput = find_sensor_group(net, "Data")
+        if throughput:
+            dl = get_sensor_value(throughput, "download")
+            if dl is None:
+                dl = get_sensor_value(throughput, "received")
+            ul = get_sensor_value(throughput, "upload")
+            if ul is None:
+                ul = get_sensor_value(throughput, "sent")
+            if dl is not None:
+                net_dl += dl
+            if ul is not None:
+                net_ul += ul
+
+    # GPU extra: core clock, memory clock, power, hot spot temp
+    gpu_core_clk = 0.0
+    gpu_mem_clk = 0.0
+    gpu_power = 0.0
+    gpu_hotspot = 0.0
+    gpu_fan = -1
+    for gpu in gpu_nodes:
+        clk_group = find_sensor_group(gpu, "Clocks")
+        if clk_group:
+            val = get_sensor_value(clk_group, "gpu core")
+            if val is not None:
+                gpu_core_clk = val
+            val = get_sensor_value(clk_group, "gpu memory")
+            if val is not None:
+                gpu_mem_clk = val
+        pwr_group = find_sensor_group(gpu, "Powers")
+        if pwr_group:
+            val = get_sensor_value(pwr_group, "gpu")
+            if val is None:
+                val = get_sensor_value(pwr_group, "power")
+            if val is None:
+                val = get_sensor_value(pwr_group, "package")
+            if val is not None:
+                gpu_power = val
+        temp_group = find_sensor_group(gpu, "Temperatures")
+        if temp_group:
+            val = get_sensor_value(temp_group, "hot spot")
+            if val is not None:
+                gpu_hotspot = val
+        fan_group = find_sensor_group(gpu, "Fans")
+        if fan_group:
+            fans = get_all_sensor_values(fan_group)
+            for f in fans:
+                if f["value"] > 0:
+                    gpu_fan = int(f["value"])
+                    break
+        break
+
+    # CPU per-core loads (up to 16 cores)
+    cpu_cores = []
+    for cpu in cpu_nodes:
+        load_group = find_sensor_group(cpu, "Load")
+        if load_group:
+            for child in load_group.get("Children", []):
+                text = child.get("Text", "").lower()
+                if "cpu core" in text and "#" in text:
+                    val = parse_value(child.get("Value", ""))
+                    cpu_cores.append(round(val, 0))
+        break
+    # Limit to 16 cores
+    cpu_cores = cpu_cores[:16]
+
+    # CPU voltage
+    cpu_voltage = 0.0
+    for cpu in cpu_nodes:
+        volt_group = find_sensor_group(cpu, "Voltages")
+        if volt_group:
+            val = get_sensor_value(volt_group, "core")
+            if val is not None:
+                cpu_voltage = val
+        break
 
     return {
         "cpu": round(cpu_load, 1),
@@ -304,8 +396,14 @@ def collect_hw_data(root):
         "ramtotal": round(ram_total, 1),
         "cpuclk": round(cpu_clock, 0),
         "cpupwr": round(cpu_power, 0),
+        "cpuvolt": round(cpu_voltage, 3),
         "gpuvram": round(gpu_vram_used, 0),
         "gpuvtot": round(gpu_vram_total, 0),
+        "gpuclk": round(gpu_core_clk, 0),
+        "gpumclk": round(gpu_mem_clk, 0),
+        "gpupwr": round(gpu_power, 0),
+        "gpuhs": round(gpu_hotspot, 0),
+        "gpufan": gpu_fan,
         "fan1": fan_list[0],
         "fan2": fan_list[1],
         "stotal": round(storage_total_tb, 1),
@@ -313,6 +411,10 @@ def collect_hw_data(root):
         "sfree": round(storage_free_tb, 1),
         "dtemp": disk_temps,
         "dname": disk_names,
+        "dsize": disk_sizes,
+        "netdl": round(net_dl, 1),
+        "netul": round(net_ul, 1),
+        "ccores": cpu_cores,
         "cpuname": cpu_name,
         "gpuname": gpu_name,
     }
@@ -331,8 +433,14 @@ def fake_data():
         "ramtotal": 64.0,
         "cpuclk": round(random.uniform(3000, 5000), 0),
         "cpupwr": round(random.uniform(30, 200), 0),
+        "cpuvolt": round(random.uniform(0.8, 1.45), 3),
         "gpuvram": round(random.uniform(500, 5000), 0),
         "gpuvtot": 6144.0,
+        "gpuclk": round(random.uniform(1200, 2100), 0),
+        "gpumclk": round(random.uniform(6000, 8000), 0),
+        "gpupwr": round(random.uniform(50, 180), 0),
+        "gpuhs": round(random.uniform(35, 85), 0),
+        "gpufan": random.randint(800, 2000),
         "fan1": random.randint(800, 1500),
         "fan2": random.randint(600, 1200),
         "stotal": 116.5,
@@ -340,6 +448,10 @@ def fake_data():
         "sfree": 24.2,
         "dtemp": [random.randint(28, 55) for _ in range(4)],
         "dname": ["980PRO", "870EVO", "WD10T", "TOSHIBA"],
+        "dsize": [1000, 500, 10000, 8000],
+        "netdl": round(random.uniform(0, 50000), 1),
+        "netul": round(random.uniform(0, 10000), 1),
+        "ccores": [round(random.uniform(0, 100), 0) for _ in range(16)],
         "cpuname": "Ryzen 9 5950X",
         "gpuname": "RTX 2060",
     }

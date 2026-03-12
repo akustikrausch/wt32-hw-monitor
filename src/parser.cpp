@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 #include <string.h>
 
-static char lineBuf[1024];
+static char lineBuf[2048];
 static int linePos = 0;
 
 bool serial_readLine(char *buf, int maxLen) {
@@ -35,12 +35,14 @@ bool parseHWData(const char *json, HWData &data) {
         return false;
     }
 
+    // Main screen data
     data.cpu_load = doc["cpu"] | 0.0f;
     data.gpu_load = doc["gpuload"] | 0.0f;
     data.cpu_temp = doc["cputemp"] | 0.0f;
     data.gpu_temp = doc["gputemp"] | 0.0f;
     data.cpu_clock = doc["cpuclk"] | 0.0f;
     data.cpu_power = doc["cpupwr"] | 0.0f;
+    data.cpu_voltage = doc["cpuvolt"] | 0.0f;
     data.gpu_vram_used = doc["gpuvram"] | 0.0f;
     data.gpu_vram_total = doc["gpuvtot"] | 0.0f;
     data.ram_percent = doc["ram"] | 0.0f;
@@ -54,9 +56,21 @@ bool parseHWData(const char *json, HWData &data) {
     data.storage_used_tb = doc["sused"] | 0.0f;
     data.storage_free_tb = doc["sfree"] | 0.0f;
 
-    // Disk temperatures
+    // Network
+    data.net_download = doc["netdl"] | 0.0f;
+    data.net_upload = doc["netul"] | 0.0f;
+
+    // GPU detail
+    data.gpu_core_clock = doc["gpuclk"] | 0.0f;
+    data.gpu_mem_clock = doc["gpumclk"] | 0.0f;
+    data.gpu_power = doc["gpupwr"] | 0.0f;
+    data.gpu_hotspot = doc["gpuhs"] | 0.0f;
+    data.gpu_fan_rpm = doc["gpufan"] | -1;
+
+    // Disk details
     JsonArray dt = doc["dtemp"];
     JsonArray dn = doc["dname"];
+    JsonArray ds = doc["dsize"];
     data.disk_count = 0;
     if (dt) {
         for (int i = 0; i < 8 && i < (int)dt.size(); i++) {
@@ -64,13 +78,27 @@ bool parseHWData(const char *json, HWData &data) {
             const char *name = (dn && i < (int)dn.size()) ? (dn[i] | "?") : "?";
             strncpy(data.disk_name[i], name, 11);
             data.disk_name[i][11] = '\0';
+            data.disk_size_gb[i] = (ds && i < (int)ds.size()) ? (ds[i] | 0) : 0;
             data.disk_count++;
         }
     }
-    // Fill rest with -1
     for (int i = data.disk_count; i < 8; i++) {
         data.disk_temp[i] = -1;
         data.disk_name[i][0] = '\0';
+        data.disk_size_gb[i] = 0;
+    }
+
+    // CPU per-core loads
+    JsonArray cc = doc["ccores"];
+    data.cpu_core_count = 0;
+    if (cc) {
+        for (int i = 0; i < 16 && i < (int)cc.size(); i++) {
+            data.cpu_core_load[i] = cc[i] | 0.0f;
+            data.cpu_core_count++;
+        }
+    }
+    for (int i = data.cpu_core_count; i < 16; i++) {
+        data.cpu_core_load[i] = 0.0f;
     }
 
     const char *cpuName = doc["cpuname"] | "Unknown CPU";
