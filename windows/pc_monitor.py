@@ -516,6 +516,25 @@ def wait_for_esp32(fixed_port, baud):
         time.sleep(2)
 
 
+def wait_for_lhm(timeout=120):
+    """Wait until LibreHardwareMonitor web server is reachable."""
+    print("Waiting for LibreHardwareMonitor...", end="", flush=True)
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            resp = requests.get(LHM_URL, timeout=2)
+            if resp.status_code == 200:
+                print(" OK")
+                return True
+        except requests.RequestException:
+            pass
+        sys.stdout.write(".")
+        sys.stdout.flush()
+        time.sleep(3)
+    print(" TIMEOUT (will keep retrying in main loop)")
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="PC Hardware Monitor - Serial Sender")
     parser.add_argument("--port", help="Serial port (e.g. COM3)", default=None)
@@ -529,9 +548,13 @@ def main():
     if args.test:
         print("TEST MODE - generating fake data")
     else:
+        # Wait for LHM to be available (important for autostart after boot)
+        wait_for_lhm()
         ser, current_port = wait_for_esp32(args.port, args.baud)
 
     print(f"Sending data every {UPDATE_INTERVAL}s. Press Ctrl+C to stop.\n")
+
+    lhm_fail_count = 0
 
     while True:
         try:
@@ -542,8 +565,11 @@ def main():
                     resp = requests.get(LHM_URL, timeout=2)
                     lhm = resp.json()
                     data = collect_hw_data(lhm)
+                    lhm_fail_count = 0
                 except requests.RequestException as e:
-                    print(f"\nWARNING: Cannot reach LibreHardwareMonitor: {e}")
+                    lhm_fail_count += 1
+                    if lhm_fail_count <= 3 or lhm_fail_count % 30 == 0:
+                        print(f"\nWARNING: Cannot reach LHM ({lhm_fail_count}x): {e}")
                     time.sleep(2)
                     continue
 
