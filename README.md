@@ -1,22 +1,33 @@
-# PC Hardware Monitor for WT32-SC01
+# WT32-SC01 PC Hardware Monitor — ESP32 Touchscreen System Monitor
 
-Real-time PC hardware monitor on the WT32-SC01 ESP32 board with a 480×320 TFT touchscreen.
-Displays CPU, GPU, RAM, storage, network, fans and temperatures — with touch navigation to 7 detail views.
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PlatformIO](https://img.shields.io/badge/PlatformIO-ESP32-orange.svg)](https://platformio.org/)
+[![ESP32](https://img.shields.io/badge/ESP32-WT32--SC01-blue.svg)](https://www.wireless-tag.com/product/wt32-sc01)
+
+> Real-time PC hardware monitoring on a WT32-SC01 ESP32 touchscreen display. An open-source alternative to AIDA64 sensor panels — using LibreHardwareMonitor, Python and a 480×320 TFT with touch navigation.
+
+Monitor your **CPU temperature, GPU load, RAM usage, disk health, network speed and fan RPM** in real time on a standalone ESP32 touchscreen. Connects via USB serial to any Windows PC running [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
+
+**Perfect for:** PC enthusiasts, overclockers, streamers, workstation monitoring, homelab dashboards, and anyone who wants a dedicated hardware stats display.
+
+## Why This Project?
+
+Most PC hardware monitoring solutions either require a second monitor or rely on expensive proprietary sensor panels. This project turns a cheap (~$15) WT32-SC01 ESP32 board into a fully featured system monitor — no WiFi needed, just USB.
 
 ## Features
 
-- **CPU**: Load (%), temperature, clock speed, power, voltage, history graph, per-core display
-- **GPU**: Load (%), temperature, VRAM, core/mem clock, power, hot spot, fan RPM, history graph
-- **RAM**: Usage (%), used/total/free in GB, visual block, history graph
-- **Storage**: Total capacity across all drives (TB), per-drive details with size and temperature
-- **Network**: Download/upload speed (KB/s to GB/s), auto-scaled history graphs
-- **Fans**: System fans (motherboard) + GPU fan with RPM bars
-- **Disk Temperatures**: Color-coded per drive (green/yellow/red)
-- **Touch Navigation**: Tap any area for a detail view, back button top-left
-- **Anti-Flicker**: Direct LCD updates without full-screen redraws
+- **CPU Monitoring**: Load (%), temperature, clock speed, power, voltage, history graph, per-core display
+- **GPU Monitoring**: Load (%), temperature, VRAM, core/mem clock, power, hot spot, fan RPM, history graph
+- **RAM Monitoring**: Usage (%), used/total/free in GB, visual block, history graph
+- **Storage Monitoring**: Total capacity across all drives (TB), per-drive details with size and temperature
+- **Network Monitoring**: Download/upload speed (KB/s to GB/s), auto-scaled history graphs
+- **Fan Speed Display**: System fans (motherboard) + GPU fan with RPM bars
+- **Disk Temperature Display**: Color-coded per drive (green/yellow/red)
+- **Touch Navigation**: Tap any area for a detail view, back button top-left — 7 detail screens
+- **Anti-Flicker Rendering**: Direct LCD updates without full-screen redraws
 - **Auto-Reconnect**: Detects USB connection loss (5s timeout), Python script survives port changes
-- **Color Coding**: Green (<60°C) → Yellow (60–80°C) → Red (>80°C)
-- **Standby Clock**: When disconnected, the display shows time, date and disconnect duration — minimalist Apple-style design with dimmed brightness
+- **Color-Coded Temperatures**: Green (<60°C) → Yellow (60–80°C) → Red (>80°C)
+- **Standby Clock Screen**: When disconnected, displays time, date and disconnect duration — minimalist Apple-style design with dimmed brightness
 - **Time Sync**: PC sends Unix timestamp + timezone offset, ESP32 keeps the clock running independently
 
 ## Architecture
@@ -153,6 +164,14 @@ wt32-hw-monitor/
 | Windows         | Python 3 + LibreHardwareMonitor (open source)     |
 | Protocol        | Compact JSON over USB serial, 115200 baud, 2 Hz  |
 
+## Keywords
+
+ESP32 hardware monitor, WT32-SC01, PC system monitor, CPU temperature display, GPU monitoring, LibreHardwareMonitor, PlatformIO, touchscreen dashboard, real-time system stats, Arduino ESP32, serial hardware monitor, AIDA64 alternative, sensor panel DIY
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+---
+
+**Found this useful?** Give it a star and share it with the PC modding community!
