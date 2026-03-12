@@ -10,6 +10,8 @@ enum ScreenState {
     SCREEN_GPU_DETAIL,
     SCREEN_RAM_DETAIL,
     SCREEN_DISK_DETAIL,
+    SCREEN_FAN_DETAIL,
+    SCREEN_NET_DETAIL,
 };
 
 // Hardware data structure
@@ -70,6 +72,8 @@ private:
     void drawGpuDetail(const HWData &data);
     void drawRamDetail(const HWData &data);
     void drawDiskDetail(const HWData &data);
+    void drawFanDetail(const HWData &data);
+    void drawNetDetail(const HWData &data);
     void drawBackButton();
 
     lgfx::LGFX_Device *_lcd;
@@ -80,6 +84,7 @@ private:
     float _gpu_history[60];
     float _ram_history[60];
     float _net_dl_history[60];
+    float _net_ul_history[60];
     int   _history_idx;
     bool  _first_draw;
     ScreenState _screen;

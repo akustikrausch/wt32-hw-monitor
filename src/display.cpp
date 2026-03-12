@@ -89,6 +89,7 @@ void PCMonitorDisplay::init() {
     memset(_gpu_history, 0, sizeof(_gpu_history));
     memset(_ram_history, 0, sizeof(_ram_history));
     memset(_net_dl_history, 0, sizeof(_net_dl_history));
+    memset(_net_ul_history, 0, sizeof(_net_ul_history));
 
     lcd.init();
     lcd.setRotation(1);
@@ -178,8 +179,17 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
             }
         } else if (tp.y >= RAM_Y && tp.y < STORAGE_Y) {
             newScreen = SCREEN_RAM_DETAIL;
-        } else if (tp.y >= STORAGE_Y && tp.y < BOTTOM_Y) {
+        } else if (tp.y >= STORAGE_Y && tp.y < NET_Y) {
             newScreen = SCREEN_DISK_DETAIL;
+        } else if (tp.y >= NET_Y && tp.y < BOTTOM_Y) {
+            newScreen = SCREEN_NET_DETAIL;
+        } else if (tp.y >= BOTTOM_Y) {
+            // Bottom section: left half = fans, right half = disk temps
+            if (tp.x < 210) {
+                newScreen = SCREEN_FAN_DETAIL;
+            } else {
+                newScreen = SCREEN_DISK_DETAIL;
+            }
         }
 
         if (newScreen != SCREEN_MAIN) {
@@ -188,10 +198,12 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
             _lcd->fillScreen(COL_BG);
             // Immediately draw the detail screen
             switch (_screen) {
-                case SCREEN_CPU_DETAIL: drawCpuDetail(data); break;
-                case SCREEN_GPU_DETAIL: drawGpuDetail(data); break;
-                case SCREEN_RAM_DETAIL: drawRamDetail(data); break;
+                case SCREEN_CPU_DETAIL:  drawCpuDetail(data); break;
+                case SCREEN_GPU_DETAIL:  drawGpuDetail(data); break;
+                case SCREEN_RAM_DETAIL:  drawRamDetail(data); break;
                 case SCREEN_DISK_DETAIL: drawDiskDetail(data); break;
+                case SCREEN_FAN_DETAIL:  drawFanDetail(data); break;
+                case SCREEN_NET_DETAIL:  drawNetDetail(data); break;
                 default: break;
             }
         }
@@ -207,21 +219,29 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
 
 void PCMonitorDisplay::update(const HWData &data) {
     switch (_screen) {
-        case SCREEN_MAIN:     drawMainScreen(data); break;
+        case SCREEN_MAIN:       drawMainScreen(data); break;
         case SCREEN_CPU_DETAIL: drawCpuDetail(data); break;
         case SCREEN_GPU_DETAIL: drawGpuDetail(data); break;
         case SCREEN_RAM_DETAIL: drawRamDetail(data); break;
-        case SCREEN_DISK_DETAIL: drawDiskDetail(data); break;
+        case SCREEN_DISK_DETAIL:drawDiskDetail(data); break;
+        case SCREEN_FAN_DETAIL: drawFanDetail(data); break;
+        case SCREEN_NET_DETAIL: drawNetDetail(data); break;
     }
 
     // Update history (always, regardless of screen)
     _cpu_history[_history_idx] = data.cpu_load;
     _gpu_history[_history_idx] = data.gpu_load;
     _ram_history[_history_idx] = data.ram_percent;
-    // Normalize net download to 0-100 range for graph (max 100MB/s = 100000 KB/s)
-    float netPct = (data.net_download / 100000.0f) * 100.0f;
-    if (netPct > 100) netPct = 100;
-    _net_dl_history[_history_idx] = netPct;
+    // Normalize net speeds to 0-100 for graph (auto-scale: find max in history)
+    float maxDl = 1.0f;
+    float maxUl = 1.0f;
+    for (int i = 0; i < HISTORY_LEN; i++) {
+        if (_net_dl_history[i] > maxDl) maxDl = _net_dl_history[i];
+        if (_net_ul_history[i] > maxUl) maxUl = _net_ul_history[i];
+    }
+    // Store raw KB/s values; graph will normalize when drawing
+    _net_dl_history[_history_idx] = data.net_download;
+    _net_ul_history[_history_idx] = data.net_upload;
     _history_idx = (_history_idx + 1) % HISTORY_LEN;
 }
 
@@ -739,4 +759,194 @@ void PCMonitorDisplay::drawDiskDetail(const HWData &data) {
 
         y += 22;
     }
+}
+
+
+// ==================== FAN DETAIL ====================
+
+void PCMonitorDisplay::drawFanDetail(const HWData &data) {
+    char buf[64];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawCenterString("FANS", SCREEN_W / 2, 4);
+
+        _first_draw = false;
+    }
+
+    int y = 45;
+
+    // System fans (from mainboard)
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("System Fans (Mainboard)", 10, y);
+    y += 22;
+
+    for (int i = 0; i < 2; i++) {
+        snprintf(buf, sizeof(buf), "FAN %d:", i + 1);
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_LABEL, COL_BG);
+        _lcd->drawString(buf, 20, y);
+
+        if (data.fan[i] >= 0) {
+            snprintf(buf, sizeof(buf), " %d RPM    ", data.fan[i]);
+            // Color: green < 1000, yellow 1000-1500, red > 1500
+            uint16_t fc = COL_GREEN;
+            if (data.fan[i] > 1500) fc = COL_RED;
+            else if (data.fan[i] > 1000) fc = COL_YELLOW;
+            _lcd->setTextColor(fc, COL_BG);
+            _lcd->drawString(buf, 140, y);
+
+            // RPM bar (0-2500 RPM range)
+            float fanPct = (data.fan[i] / 2500.0f) * 100.0f;
+            if (fanPct > 100) fanPct = 100;
+            drawBar(310, y + 5, 160, 16, fanPct, fc);
+        } else {
+            _lcd->setFont(&fonts::Font4);
+            _lcd->setTextColor(COL_DIVIDER, COL_BG);
+            _lcd->drawString(" ---       ", 140, y);
+        }
+        y += 40;
+    }
+
+    y += 10;
+
+    // GPU fan
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 8;
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("GPU Fan", 10, y);
+    y += 22;
+
+    _lcd->setFont(&fonts::Font4);
+    if (data.gpu_fan_rpm >= 0) {
+        snprintf(buf, sizeof(buf), " %d RPM    ", data.gpu_fan_rpm);
+        uint16_t gc = COL_GREEN;
+        if (data.gpu_fan_rpm > 2000) gc = COL_RED;
+        else if (data.gpu_fan_rpm > 1500) gc = COL_YELLOW;
+        _lcd->setTextColor(gc, COL_BG);
+        _lcd->drawString(buf, 20, y);
+
+        float gpuFanPct = (data.gpu_fan_rpm / 3000.0f) * 100.0f;
+        if (gpuFanPct > 100) gpuFanPct = 100;
+        drawBar(250, y + 5, 220, 16, gpuFanPct, gc);
+    } else {
+        _lcd->setTextColor(COL_DIVIDER, COL_BG);
+        _lcd->drawString(" Not available    ", 20, y);
+    }
+
+    y += 45;
+
+    // Summary at bottom
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    int activeCount = 0;
+    for (int i = 0; i < 2; i++) {
+        if (data.fan[i] >= 0) activeCount++;
+    }
+    if (data.gpu_fan_rpm >= 0) activeCount++;
+    snprintf(buf, sizeof(buf), "%d active fan(s) detected", activeCount);
+    _lcd->drawCenterString(buf, SCREEN_W / 2, y);
+}
+
+
+// ==================== NETWORK DETAIL ====================
+
+void PCMonitorDisplay::drawNetDetail(const HWData &data) {
+    char buf[64];
+    char speedBuf[16];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_ORANGE, COL_BG);
+        _lcd->drawCenterString("NETWORK", SCREEN_W / 2, 4);
+
+        _first_draw = false;
+    }
+
+    int y = 40;
+
+    // Download speed - large
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Download:", 10, y);
+    y += 20;
+
+    _lcd->setFont(&fonts::Font4);
+    formatSpeed(data.net_download, speedBuf, sizeof(speedBuf));
+    snprintf(buf, sizeof(buf), " %s      ", speedBuf);
+    _lcd->setTextColor(COL_GREEN, COL_BG);
+    _lcd->drawString(buf, 10, y);
+
+    // Download bar (normalized to max seen)
+    float maxDl = 1.0f;
+    for (int i = 0; i < HISTORY_LEN; i++) {
+        if (_net_dl_history[i] > maxDl) maxDl = _net_dl_history[i];
+    }
+    float dlPct = (data.net_download / maxDl) * 100.0f;
+    if (dlPct > 100) dlPct = 100;
+    drawBar(250, y + 4, 220, 18, dlPct, COL_GREEN);
+
+    y += 40;
+
+    // Upload speed - large
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Upload:", 10, y);
+    y += 20;
+
+    _lcd->setFont(&fonts::Font4);
+    formatSpeed(data.net_upload, speedBuf, sizeof(speedBuf));
+    snprintf(buf, sizeof(buf), " %s      ", speedBuf);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 10, y);
+
+    // Upload bar
+    float maxUl = 1.0f;
+    for (int i = 0; i < HISTORY_LEN; i++) {
+        if (_net_ul_history[i] > maxUl) maxUl = _net_ul_history[i];
+    }
+    float ulPct = (data.net_upload / maxUl) * 100.0f;
+    if (ulPct > 100) ulPct = 100;
+    drawBar(250, y + 4, 220, 18, ulPct, COL_CYAN);
+
+    y += 45;
+
+    // Download graph (auto-scaled)
+    _lcd->setFont(&fonts::Font0);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    formatSpeed(maxDl, speedBuf, sizeof(speedBuf));
+    snprintf(buf, sizeof(buf), "Download History (max: %s)  ", speedBuf);
+    _lcd->drawString(buf, 10, y);
+    y += 12;
+
+    // Normalize download history to 0-100 for graph
+    float normDl[60];
+    for (int i = 0; i < HISTORY_LEN; i++) {
+        normDl[i] = (maxDl > 0) ? (_net_dl_history[i] / maxDl) * 100.0f : 0;
+    }
+    drawGraph(10, y, SCREEN_W - 20, 60, normDl, HISTORY_LEN, COL_GREEN);
+
+    y += 68;
+
+    // Upload graph
+    formatSpeed(maxUl, speedBuf, sizeof(speedBuf));
+    snprintf(buf, sizeof(buf), "Upload History (max: %s)  ", speedBuf);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 10, y);
+    y += 12;
+
+    float normUl[60];
+    for (int i = 0; i < HISTORY_LEN; i++) {
+        normUl[i] = (maxUl > 0) ? (_net_ul_history[i] / maxUl) * 100.0f : 0;
+    }
+    drawGraph(10, y, SCREEN_W - 20, 60, normUl, HISTORY_LEN, COL_CYAN);
 }
