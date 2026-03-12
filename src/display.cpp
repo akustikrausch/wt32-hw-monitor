@@ -2,6 +2,9 @@
 #include "config.h"
 #include <stdio.h>
 #include <string.h>
+#include <Preferences.h>
+
+static Preferences nvs;
 
 // === LovyanGFX ST7796S configuration for WT32-SC01 ===
 class LGFX_WT32 : public lgfx::LGFX_Device {
@@ -89,9 +92,23 @@ void PCMonitorDisplay::init() {
     _tzOffset = 3600;  // Default CET
     _lastTimeSyncMillis = 0;
     _disconnectMillis = 0;
-    _timeValid = false;
     _dotAnimState = 0;
     _lastDotAnim = 0;
+
+    // Restore last known time from NVS (survives reboot)
+    nvs.begin("hwmon", false);
+    unsigned long savedTs = nvs.getULong("ts", 0);
+    int savedTzo = nvs.getInt("tzo", 3600);
+    if (savedTs > 1700000000UL) {  // Sanity check: after 2023
+        _lastTimestamp = savedTs;
+        _tzOffset = savedTzo;
+        _lastTimeSyncMillis = millis();
+        _timeValid = true;
+        printf("Restored time from NVS: ts=%lu tzo=%d\n", savedTs, savedTzo);
+    } else {
+        _timeValid = false;
+    }
+
     memset(_cpu_history, 0, sizeof(_cpu_history));
     memset(_gpu_history, 0, sizeof(_gpu_history));
     memset(_ram_history, 0, sizeof(_ram_history));
@@ -348,6 +365,14 @@ void PCMonitorDisplay::update(const HWData &data) {
         _tzOffset = data.tz_offset;
         _lastTimeSyncMillis = millis();
         _timeValid = true;
+
+        // Save to NVS every 30 seconds (avoid excessive flash writes)
+        static unsigned long lastNvsSave = 0;
+        if (millis() - lastNvsSave > 30000) {
+            nvs.putULong("ts", _lastTimestamp);
+            nvs.putInt("tzo", _tzOffset);
+            lastNvsSave = millis();
+        }
     }
 
     // Coming back from standby?
