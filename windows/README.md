@@ -64,7 +64,7 @@ python pc_monitor.py --test
 Das Script zeigt eine fortlaufende Statuszeile:
 
 ```
-CPU: 21.8% 83.0C | GPU:  8.0% 46.0C | RAM:  67% | DISK:98.0/116.5TB | FAN:1435/945
+CPU: 38.5% 62.0C | GPU: 42.0% 48.0C | RAM:  58% | DISK:5.8/8.0TB | FAN:1100/850
 ```
 
 ## Gesendete Daten
@@ -178,7 +178,7 @@ python pc_monitor.py --test
 The script shows a continuously updated status line:
 
 ```
-CPU: 21.8% 83.0C | GPU:  8.0% 46.0C | RAM:  67% | DISK:98.0/116.5TB | FAN:1435/945
+CPU: 38.5% 62.0C | GPU: 42.0% 48.0C | RAM:  58% | DISK:5.8/8.0TB | FAN:1100/850
 ```
 
 ## Data Sent

@@ -20,7 +20,7 @@ Dokumentation des Kommunikationsprotokolls zwischen Python-Script und ESP32.
 ## JSON-Beispiel
 
 ```json
-{"cpu":45.2,"gpuload":30.0,"cputemp":68.0,"gputemp":55.0,"cpuclk":4283,"cpupwr":137,"cpuvolt":1.125,"gpuvram":2048,"gpuvtot":6144,"gpuclk":1950,"gpumclk":7000,"gpupwr":120,"gpuhs":62,"gpufan":1200,"ram":62.0,"ramused":39.8,"ramtotal":64.0,"fan1":1200,"fan2":980,"stotal":116.5,"sused":92.3,"sfree":24.2,"dtemp":[38,42,35,40],"dname":["980PRO","870EVO","WD10T","ST24T"],"dsize":[1000,500,10000,24000],"netdl":31.5,"netul":5.2,"ccores":[45,32,78,12,55,66,23,89,10,44,33,67,22,90,15,50],"cpuname":"Ryzen 9 5950X","gpuname":"RTX 2060","ts":1741784400,"tzo":3600}
+{"cpu":38.5,"gpuload":42.0,"cputemp":62.0,"gputemp":48.0,"cpuclk":5800,"cpupwr":170,"cpuvolt":1.280,"gpuvram":16384,"gpuvtot":32768,"gpuclk":2850,"gpumclk":12000,"gpupwr":380,"gpuhs":55,"gpufan":1450,"ram":58.0,"ramused":74.2,"ramtotal":128.0,"fan1":1100,"fan2":850,"stotal":8.0,"sused":5.8,"sfree":2.2,"dtemp":[35,38,32,36],"dname":["990PRO","T700","T500","SN850X"],"dsize":[2000,2000,2000,2000],"netdl":125.8,"netul":42.3,"ccores":[38,42,55,28,62,35,48,22,58,30,45,52,40,33,50,27],"cpuname":"Ryzen 9 9950X","gpuname":"RTX 5090","ts":1741784400,"tzo":3600}
 ```
 
 ## Felder
@@ -95,10 +95,10 @@ Das Python-Script kürzt Laufwerksnamen automatisch für die Anzeige:
 
 | Original                  | Kurzname |
 |--------------------------|----------|
-| Samsung 980 PRO          | 980PRO   |
-| Samsung SSD 870 EVO      | 870EVO   |
-| WDC WD101EFBX            | WD101EF  |
-| Seagate ST24000NM007H    | ST24T    |
+| Samsung 990 PRO 2TB     | 990PRO   |
+| Crucial T700 2TB        | T700     |
+| Crucial T500 2TB        | T500     |
+| WD Black SN850X 2TB     | SN850X   |
 
 Regeln: Hersteller-Präfixe entfernen, Suffixe wie "NVMe"/"SATA" entfernen, auf max. 8 Zeichen kürzen. Seagate-Modelle werden auf Kapazität in TB/GB abgebildet.
 
@@ -134,7 +134,7 @@ Documentation of the communication protocol between the Python script and ESP32.
 ## JSON Example
 
 ```json
-{"cpu":45.2,"gpuload":30.0,"cputemp":68.0,"gputemp":55.0,"cpuclk":4283,"cpupwr":137,"cpuvolt":1.125,"gpuvram":2048,"gpuvtot":6144,"gpuclk":1950,"gpumclk":7000,"gpupwr":120,"gpuhs":62,"gpufan":1200,"ram":62.0,"ramused":39.8,"ramtotal":64.0,"fan1":1200,"fan2":980,"stotal":116.5,"sused":92.3,"sfree":24.2,"dtemp":[38,42,35,40],"dname":["980PRO","870EVO","WD10T","ST24T"],"dsize":[1000,500,10000,24000],"netdl":31.5,"netul":5.2,"ccores":[45,32,78,12,55,66,23,89,10,44,33,67,22,90,15,50],"cpuname":"Ryzen 9 5950X","gpuname":"RTX 2060","ts":1741784400,"tzo":3600}
+{"cpu":38.5,"gpuload":42.0,"cputemp":62.0,"gputemp":48.0,"cpuclk":5800,"cpupwr":170,"cpuvolt":1.280,"gpuvram":16384,"gpuvtot":32768,"gpuclk":2850,"gpumclk":12000,"gpupwr":380,"gpuhs":55,"gpufan":1450,"ram":58.0,"ramused":74.2,"ramtotal":128.0,"fan1":1100,"fan2":850,"stotal":8.0,"sused":5.8,"sfree":2.2,"dtemp":[35,38,32,36],"dname":["990PRO","T700","T500","SN850X"],"dsize":[2000,2000,2000,2000],"netdl":125.8,"netul":42.3,"ccores":[38,42,55,28,62,35,48,22,58,30,45,52,40,33,50,27],"cpuname":"Ryzen 9 9950X","gpuname":"RTX 5090","ts":1741784400,"tzo":3600}
 ```
 
 ## Fields
@@ -209,10 +209,10 @@ The Python script automatically shortens drive names for display:
 
 | Original                  | Short Name |
 |--------------------------|------------|
-| Samsung 980 PRO          | 980PRO     |
-| Samsung SSD 870 EVO      | 870EVO     |
-| WDC WD101EFBX            | WD101EF    |
-| Seagate ST24000NM007H    | ST24T      |
+| Samsung 990 PRO 2TB     | 990PRO   |
+| Crucial T700 2TB        | T700     |
+| Crucial T500 2TB        | T500     |
+| WD Black SN850X 2TB     | SN850X   |
 
 Rules: Remove manufacturer prefixes, strip suffixes like "NVMe"/"SATA", truncate to max 8 characters. Seagate models are mapped to their capacity in TB/GB.
 
