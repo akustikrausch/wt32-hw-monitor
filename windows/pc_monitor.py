@@ -480,6 +480,31 @@ def fake_data():
     }
 
 
+def open_serial(port_name, baud):
+    """Open serial port, return (serial_obj, port_name) or (None, None)."""
+    try:
+        ser = serial.Serial(port_name, baud, timeout=1)
+        print(f"\nSerial port {port_name} opened at {baud} baud")
+        return ser, port_name
+    except serial.SerialException as e:
+        print(f"\nCannot open {port_name}: {e}")
+        return None, None
+
+
+def wait_for_esp32(fixed_port, baud):
+    """Wait until an ESP32 is found, return (serial_obj, port_name)."""
+    print("\nWaiting for ESP32...", end="", flush=True)
+    while True:
+        port = fixed_port or find_esp32_port()
+        if port:
+            ser, name = open_serial(port, baud)
+            if ser:
+                return ser, name
+        sys.stdout.write(".")
+        sys.stdout.flush()
+        time.sleep(2)
+
+
 def main():
     parser = argparse.ArgumentParser(description="PC Hardware Monitor - Serial Sender")
     parser.add_argument("--port", help="Serial port (e.g. COM3)", default=None)
@@ -487,22 +512,13 @@ def main():
     parser.add_argument("--baud", type=int, default=BAUD_RATE, help="Baud rate")
     args = parser.parse_args()
 
-    # Open serial port
     ser = None
-    if not args.test:
-        port = args.port or find_esp32_port()
-        if not port:
-            print("ERROR: No serial port found. Use --port COM3 or --test")
-            sys.exit(1)
+    current_port = None
 
-        try:
-            ser = serial.Serial(port, args.baud, timeout=1)
-            print(f"Serial port {port} opened at {args.baud} baud")
-        except serial.SerialException as e:
-            print(f"ERROR: Cannot open {port}: {e}")
-            sys.exit(1)
-    else:
+    if args.test:
         print("TEST MODE - generating fake data")
+    else:
+        ser, current_port = wait_for_esp32(args.port, args.baud)
 
     print(f"Sending data every {UPDATE_INTERVAL}s. Press Ctrl+C to stop.\n")
 
@@ -523,7 +539,23 @@ def main():
             line = json.dumps(data, separators=(",", ":")) + "\n"
 
             if ser:
-                ser.write(line.encode("utf-8"))
+                try:
+                    ser.write(line.encode("utf-8"))
+                except (serial.SerialException, OSError):
+                    # Connection lost — close and reconnect
+                    print(f"\nConnection lost on {current_port}!")
+                    try:
+                        ser.close()
+                    except Exception:
+                        pass
+                    ser = None
+                    ser, current_port = wait_for_esp32(args.port, args.baud)
+                    continue
+
+            elif not args.test:
+                # No serial connection — try to reconnect
+                ser, current_port = wait_for_esp32(args.port, args.baud)
+                continue
 
             # Print to console
             sys.stdout.write(
