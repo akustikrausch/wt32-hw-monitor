@@ -65,7 +65,6 @@ public:
 };
 
 static LGFX_WT32 lcd;
-
 PCMonitorDisplay display;
 
 void PCMonitorDisplay::init() {
@@ -77,19 +76,12 @@ void PCMonitorDisplay::init() {
     memset(_gpu_history, 0, sizeof(_gpu_history));
 
     lcd.init();
-    lcd.setRotation(1);  // Landscape
+    lcd.setRotation(1);
     lcd.setBrightness(200);
     lcd.fillScreen(COL_BG);
 
-    printf("Display: ST7796S 480x320 initialized (direct draw, no flicker)\n");
+    printf("Display initialized (480x320, no header, direct draw)\n");
     printf("Free heap: %d bytes\n", ESP.getFreeHeap());
-}
-
-void PCMonitorDisplay::drawHeader() {
-    _lcd->fillRect(0, 0, SCREEN_W, HEADER_H, COL_HEADER);
-    _lcd->setTextColor(COL_CYAN, COL_HEADER);
-    _lcd->setFont(&fonts::Font4);
-    _lcd->drawString("PC HARDWARE MONITOR", 10, 4);
 }
 
 uint16_t PCMonitorDisplay::tempColor(float temp) {
@@ -102,217 +94,203 @@ void PCMonitorDisplay::drawBar(int x, int y, int w, int h, float percent, uint16
     if (percent < 0) percent = 0;
     if (percent > 100) percent = 100;
     int filled = (int)(w * percent / 100.0f);
-
-    // Draw filled portion
-    if (filled > 0) {
-        _lcd->fillRect(x, y, filled, h, color);
-    }
-    // Draw empty portion (overwrites old bar without clearing first)
-    if (filled < w) {
-        _lcd->fillRect(x + filled, y, w - filled, h, COL_BAR_BG);
-    }
+    if (filled > 0) _lcd->fillRect(x, y, filled, h, color);
+    if (filled < w) _lcd->fillRect(x + filled, y, w - filled, h, COL_BAR_BG);
     _lcd->drawRect(x, y, w, h, COL_DIVIDER);
 }
 
 void PCMonitorDisplay::drawGraph(int x, int y, int w, int h, float *history, int len, uint16_t color) {
-    // Clear graph area
     _lcd->fillRect(x + 1, y + 1, w - 2, h - 2, COL_BAR_BG);
     _lcd->drawRect(x, y, w, h, COL_DIVIDER);
 
     // Grid lines at 25%, 50%, 75%
     for (int g = 1; g <= 3; g++) {
         int gy = y + h - (h * g / 4);
-        for (int gx = x + 2; gx < x + w - 2; gx += 4) {
+        for (int gx = x + 2; gx < x + w - 2; gx += 4)
             _lcd->drawPixel(gx, gy, COL_DIVIDER);
-        }
     }
 
-    // Plot values
     if (len < 2) return;
     for (int i = 1; i < len; i++) {
         int idx_prev = (_history_idx + i - 1) % len;
         int idx_curr = (_history_idx + i) % len;
-
         int x0 = x + (i - 1) * (w - 4) / (len - 1) + 2;
         int x1 = x + i * (w - 4) / (len - 1) + 2;
         int y0 = y + h - 2 - (int)(history[idx_prev] * (h - 4) / 100.0f);
         int y1 = y + h - 2 - (int)(history[idx_curr] * (h - 4) / 100.0f);
-
         if (y0 < y + 1) y0 = y + 1;
         if (y1 < y + 1) y1 = y + 1;
         if (y0 > y + h - 2) y0 = y + h - 2;
         if (y1 > y + h - 2) y1 = y + h - 2;
-
         _lcd->drawLine(x0, y0, x1, y1, color);
     }
 }
 
-void PCMonitorDisplay::drawTemp(int x, int y, float temp) {
-    char buf[16];
-    uint16_t col = tempColor(temp);
-    snprintf(buf, sizeof(buf), "%.0f C  ", temp);  // trailing spaces to clear old digits
-    _lcd->setTextColor(col, COL_BG);
-    _lcd->setFont(&fonts::Font4);
-    _lcd->drawString(buf, x, y);
-}
-
-void PCMonitorDisplay::drawFanSection(const HWData &data) {
-    int y = FAN_Y + 6;
-
-    _lcd->setFont(&fonts::Font2);
-
-    char buf[32];
-    for (int i = 0; i < 4; i++) {
-        int fx = (i % 2 == 0) ? COL_LEFT_X + 10 : COL_RIGHT_X + 10;
-        int fy = y + (i / 2) * 20;
-
-        if (data.fan[i] >= 0) {
-            snprintf(buf, sizeof(buf), "FAN%d: %d RPM   ", i + 1, data.fan[i]);
-            _lcd->setTextColor(COL_TEXT, COL_BG);
-        } else {
-            snprintf(buf, sizeof(buf), "FAN%d: ---      ", i + 1);
-            _lcd->setTextColor(COL_DIVIDER, COL_BG);
-        }
-        _lcd->drawString(buf, fx, fy);
-    }
-}
-
-void PCMonitorDisplay::drawStorageSection(const HWData &data) {
-    int y = STORAGE_Y;
-    y += 6;
-
-    _lcd->setFont(&fonts::Font2);
-    _lcd->setTextColor(COL_BLUE, COL_BG);
-    _lcd->drawString("DISK", COL_LEFT_X + 4, y + 2);
-
-    float pct = 0;
-    if (data.storage_total_tb > 0) {
-        pct = (data.storage_used_tb / data.storage_total_tb) * 100.0f;
-    }
-
-    uint16_t col = (pct < 70) ? COL_GREEN : (pct < 90) ? COL_YELLOW : COL_RED;
-    drawBar(60, y, 280, BAR_H, pct, col);
-
-    char buf[64];
-    snprintf(buf, sizeof(buf), "%.0f%%  %.1f / %.1f TB ", pct, data.storage_used_tb, data.storage_total_tb);
-    _lcd->setTextColor(COL_TEXT, COL_BG);
-    _lcd->drawString(buf, 350, y + 2);
-}
-
 void PCMonitorDisplay::showWaiting() {
     _lcd->fillScreen(COL_BG);
-    drawHeader();
-
     _lcd->setFont(&fonts::Font4);
     _lcd->setTextColor(COL_LABEL, COL_BG);
-    _lcd->drawCenterString("Waiting for PC connection...", SCREEN_W / 2, 120);
+    _lcd->drawCenterString("Waiting for PC...", SCREEN_W / 2, 120);
     _lcd->setFont(&fonts::Font2);
     _lcd->drawCenterString("Start LibreHardwareMonitor + pc_monitor.py", SCREEN_W / 2, 160);
-    _lcd->drawCenterString("on your Windows PC", SCREEN_W / 2, 180);
 }
 
 void PCMonitorDisplay::update(const HWData &data) {
     char buf[64];
 
-    // On first draw: clear screen and draw all static elements
+    // === First draw: clear + static elements ===
     if (_first_draw) {
         _lcd->fillScreen(COL_BG);
-        drawHeader();
-
-        // Draw static dividers
         _lcd->drawFastVLine(COL_RIGHT_X - 2, CPU_GPU_Y, CPU_GPU_H, COL_DIVIDER);
         _lcd->drawFastHLine(4, RAM_Y, SCREEN_W - 8, COL_DIVIDER);
         _lcd->drawFastHLine(4, STORAGE_Y, SCREEN_W - 8, COL_DIVIDER);
-        _lcd->drawFastHLine(4, FAN_Y, SCREEN_W - 8, COL_DIVIDER);
+        _lcd->drawFastHLine(4, BOTTOM_Y, SCREEN_W - 8, COL_DIVIDER);
 
-        // Static labels
+        // CPU/GPU names (static)
         _lcd->setFont(&fonts::Font2);
         _lcd->setTextColor(COL_CYAN, COL_BG);
         _lcd->drawString("CPU", COL_LEFT_X + 4, CPU_GPU_Y + 2);
-
         _lcd->setTextColor(COL_GREEN, COL_BG);
         _lcd->drawString("GPU", COL_RIGHT_X + 4, CPU_GPU_Y + 2);
 
-        // CPU/GPU names (only once)
         _lcd->setFont(&fonts::Font0);
         _lcd->setTextColor(COL_LABEL, COL_BG);
         _lcd->drawString(data.cpu_name, COL_LEFT_X + 40, CPU_GPU_Y + 6);
         _lcd->drawString(data.gpu_name, COL_RIGHT_X + 40, CPU_GPU_Y + 6);
 
-        // Temp labels
-        _lcd->setFont(&fonts::Font2);
-        _lcd->setTextColor(COL_LABEL, COL_BG);
-        _lcd->drawString("Temp:", COL_LEFT_X + 4, CPU_GPU_Y + 22 + BAR_H + 6);
-        _lcd->drawString("Temp:", COL_RIGHT_X + 4, CPU_GPU_Y + 22 + BAR_H + 6);
-
         _first_draw = false;
     }
 
-    // === Connection status dot ===
-    uint16_t dotCol = data.connected ? COL_GREEN : COL_RED;
-    _lcd->fillCircle(SCREEN_W - 14, HEADER_H / 2, 5, dotCol);
-
-    // === CPU Section (left) — dynamic values only ===
+    // ========== CPU Section (left column) ==========
     int lx = COL_LEFT_X;
-    int ly = CPU_GPU_Y + 22;
+    int ly = CPU_GPU_Y + 20;
 
-    // CPU load bar + percentage
+    // Load bar + percentage
     uint16_t cpuCol = (data.cpu_load < 70) ? COL_GREEN : (data.cpu_load < 90) ? COL_YELLOW : COL_RED;
     drawBar(lx + 4, ly, COL_LEFT_W - 55, BAR_H, data.cpu_load, cpuCol);
-    snprintf(buf, sizeof(buf), "%3.0f%% ", data.cpu_load);
+    snprintf(buf, sizeof(buf), "%3.0f%%", data.cpu_load);
     _lcd->setFont(&fonts::Font2);
     _lcd->setTextColor(COL_TEXT, COL_BG);
     _lcd->drawString(buf, lx + COL_LEFT_W - 45, ly);
 
-    // CPU temp
-    ly += BAR_H + 6;
-    drawTemp(lx + 60, ly, data.cpu_temp);
+    // Temp + Clock + Power (one line)
+    ly += BAR_H + 4;
+    snprintf(buf, sizeof(buf), "%.0fC ", data.cpu_temp);
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(tempColor(data.cpu_temp), COL_BG);
+    _lcd->drawString(buf, lx + 4, ly);
 
-    // CPU graph
-    ly += 24;
+    snprintf(buf, sizeof(buf), "%.0fMHz ", data.cpu_clock);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, lx + 55, ly);
+
+    snprintf(buf, sizeof(buf), "%.0fW  ", data.cpu_power);
+    _lcd->setTextColor(COL_ORANGE, COL_BG);
+    _lcd->drawString(buf, lx + 148, ly);
+
+    // Graph
+    ly += 20;
     _cpu_history[_history_idx] = data.cpu_load;
     drawGraph(lx + 4, ly, GRAPH_W, GRAPH_H, _cpu_history, HISTORY_LEN, COL_CYAN);
 
-    // === GPU Section (right) — dynamic values only ===
+    // ========== GPU Section (right column) ==========
     int rx = COL_RIGHT_X;
-    int ry = CPU_GPU_Y + 22;
+    int ry = CPU_GPU_Y + 20;
 
-    // GPU load bar + percentage
+    // Load bar + percentage
     uint16_t gpuCol = (data.gpu_load < 70) ? COL_GREEN : (data.gpu_load < 90) ? COL_YELLOW : COL_RED;
     drawBar(rx + 4, ry, COL_RIGHT_W - 55, BAR_H, data.gpu_load, gpuCol);
-    snprintf(buf, sizeof(buf), "%3.0f%% ", data.gpu_load);
+    snprintf(buf, sizeof(buf), "%3.0f%%", data.gpu_load);
     _lcd->setFont(&fonts::Font2);
     _lcd->setTextColor(COL_TEXT, COL_BG);
     _lcd->drawString(buf, rx + COL_RIGHT_W - 45, ry);
 
-    // GPU temp
-    ry += BAR_H + 6;
-    drawTemp(rx + 60, ry, data.gpu_temp);
+    // Temp + VRAM (one line)
+    ry += BAR_H + 4;
+    snprintf(buf, sizeof(buf), "%.0fC ", data.gpu_temp);
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(tempColor(data.gpu_temp), COL_BG);
+    _lcd->drawString(buf, rx + 4, ry);
 
-    // GPU graph
-    ry += 24;
+    snprintf(buf, sizeof(buf), "%.0f/%.0fMB ", data.gpu_vram_used, data.gpu_vram_total);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, rx + 55, ry);
+
+    // Graph
+    ry += 20;
     _gpu_history[_history_idx] = data.gpu_load;
     drawGraph(rx + 4, ry, GRAPH_W, GRAPH_H, _gpu_history, HISTORY_LEN, COL_GREEN);
 
-    // === RAM Section ===
-    int ry2 = RAM_Y + 6;
+    // ========== RAM Section ==========
+    int ry2 = RAM_Y + 5;
     _lcd->setFont(&fonts::Font2);
     _lcd->setTextColor(COL_YELLOW, COL_BG);
-    _lcd->drawString("RAM", COL_LEFT_X + 4, ry2 + 2);
+    _lcd->drawString("RAM", 6, ry2);
 
     uint16_t ramCol = (data.ram_percent < 70) ? COL_GREEN : (data.ram_percent < 90) ? COL_YELLOW : COL_RED;
-    drawBar(60, ry2, 280, BAR_H, data.ram_percent, ramCol);
+    drawBar(44, ry2, 240, BAR_H, data.ram_percent, ramCol);
 
-    snprintf(buf, sizeof(buf), "%3.0f%%  %.1f / %.0f GB ", data.ram_percent, data.ram_used_gb, data.ram_total_gb);
+    snprintf(buf, sizeof(buf), "%.0f%%  %.1f/%.0fGB  ", data.ram_percent, data.ram_used_gb, data.ram_total_gb);
     _lcd->setTextColor(COL_TEXT, COL_BG);
-    _lcd->drawString(buf, 350, ry2 + 2);
+    _lcd->drawString(buf, 290, ry2);
 
-    // === Storage Section ===
-    drawStorageSection(data);
+    // ========== Storage Section ==========
+    int sy = STORAGE_Y + 5;
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_BLUE, COL_BG);
+    _lcd->drawString("DSK", 6, sy);
 
-    // === Fan Section ===
-    drawFanSection(data);
+    float sPct = 0;
+    if (data.storage_total_tb > 0)
+        sPct = (data.storage_used_tb / data.storage_total_tb) * 100.0f;
+    uint16_t sCol = (sPct < 70) ? COL_GREEN : (sPct < 90) ? COL_YELLOW : COL_RED;
+    drawBar(44, sy, 240, BAR_H, sPct, sCol);
 
-    // Update history index
+    snprintf(buf, sizeof(buf), "%.0f%% %.0f/%.0fTB ", sPct, data.storage_used_tb, data.storage_total_tb);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 290, sy);
+
+    // ========== Bottom Section: Fans + Disk Temps ==========
+    int by = BOTTOM_Y + 4;
+    _lcd->setFont(&fonts::Font0);
+
+    // Fans (left side)
+    for (int i = 0; i < 2; i++) {
+        int fx = 6 + i * 100;
+        if (data.fan[i] >= 0) {
+            snprintf(buf, sizeof(buf), "FAN%d:%dRPM ", i + 1, data.fan[i]);
+            _lcd->setTextColor(COL_TEXT, COL_BG);
+        } else {
+            snprintf(buf, sizeof(buf), "FAN%d:---   ", i + 1);
+            _lcd->setTextColor(COL_DIVIDER, COL_BG);
+        }
+        _lcd->drawString(buf, fx, by);
+    }
+
+    // Disk temps (right side of fan line + second line)
+    int dtx = 210;  // start x for disk temps
+    int dty = by;
+    int col_w = 68; // width per disk temp entry
+    int cols = (SCREEN_W - dtx) / col_w; // how many fit per row
+
+    for (int i = 0; i < data.disk_count && i < 8; i++) {
+        int cx = dtx + (i % cols) * col_w;
+        int cy = dty + (i / cols) * 12;
+
+        if (data.disk_temp[i] >= 0) {
+            uint16_t tc = tempColor((float)data.disk_temp[i]);
+            snprintf(buf, sizeof(buf), "%s:%dC", data.disk_name[i], data.disk_temp[i]);
+            _lcd->setTextColor(tc, COL_BG);
+        } else {
+            snprintf(buf, sizeof(buf), "%s:--", data.disk_name[i]);
+            _lcd->setTextColor(COL_DIVIDER, COL_BG);
+        }
+        _lcd->drawString(buf, cx, cy);
+    }
+
+    // Connection dot (top right corner)
+    _lcd->fillCircle(SCREEN_W - 8, 6, 4, data.connected ? COL_GREEN : COL_RED);
+
+    // Update history
     _history_idx = (_history_idx + 1) % HISTORY_LEN;
 }
