@@ -105,7 +105,7 @@ Detailed instructions: [docs/SETUP.md](docs/SETUP.md)
 ```
 ┌───────────────────────────────────────────────┐
 │                                               │
-│                  14:32                         │
+│                  20:32                         │
 │                                               │
 │           Do, 12. Maerz 2026                  │
 │                                               │
