@@ -286,18 +286,18 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
     _lcd->drawString(buf, lx + COL_LEFT_W - 45, ly);
 
     ly += BAR_H + 4;
-    snprintf(buf, sizeof(buf), "%.0f\xB0""C ", data.cpu_temp);
+    snprintf(buf, sizeof(buf), "%.0f C ", data.cpu_temp);
     _lcd->setFont(&fonts::Font2);
     _lcd->setTextColor(tempColor(data.cpu_temp), COL_BG);
     _lcd->drawString(buf, lx + 4, ly);
 
-    snprintf(buf, sizeof(buf), "%.0fMHz ", data.cpu_clock);
+    snprintf(buf, sizeof(buf), " %.0f MHz ", data.cpu_clock);
     _lcd->setTextColor(COL_CYAN, COL_BG);
-    _lcd->drawString(buf, lx + 60, ly);
+    _lcd->drawString(buf, lx + 55, ly);
 
-    snprintf(buf, sizeof(buf), "%.0fW  ", data.cpu_power);
+    snprintf(buf, sizeof(buf), " %.0f W  ", data.cpu_power);
     _lcd->setTextColor(COL_ORANGE, COL_BG);
-    _lcd->drawString(buf, lx + 155, ly);
+    _lcd->drawString(buf, lx + 150, ly);
 
     ly += 20;
     drawGraph(lx + 4, ly, GRAPH_W, GRAPH_H, _cpu_history, HISTORY_LEN, COL_CYAN);
@@ -314,14 +314,14 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
     _lcd->drawString(buf, rx + COL_RIGHT_W - 45, ry);
 
     ry += BAR_H + 4;
-    snprintf(buf, sizeof(buf), "%.0f\xB0""C ", data.gpu_temp);
+    snprintf(buf, sizeof(buf), "%.0f C ", data.gpu_temp);
     _lcd->setFont(&fonts::Font2);
     _lcd->setTextColor(tempColor(data.gpu_temp), COL_BG);
     _lcd->drawString(buf, rx + 4, ry);
 
-    snprintf(buf, sizeof(buf), "%.0f/%.0fMB ", data.gpu_vram_used, data.gpu_vram_total);
+    snprintf(buf, sizeof(buf), " %.0f/%.0f MB ", data.gpu_vram_used, data.gpu_vram_total);
     _lcd->setTextColor(COL_LABEL, COL_BG);
-    _lcd->drawString(buf, rx + 55, ry);
+    _lcd->drawString(buf, rx + 50, ry);
 
     ry += 20;
     drawGraph(rx + 4, ry, GRAPH_W, GRAPH_H, _gpu_history, HISTORY_LEN, COL_GREEN);
@@ -366,13 +366,13 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
     formatSpeed(data.net_upload, ulBuf, sizeof(ulBuf));
 
     _lcd->setFont(&fonts::Font2);
-    snprintf(buf, sizeof(buf), "DL:%s ", dlBuf);
+    snprintf(buf, sizeof(buf), "DL: %s  ", dlBuf);
     _lcd->setTextColor(COL_GREEN, COL_BG);
     _lcd->drawString(buf, 44, ny);
 
-    snprintf(buf, sizeof(buf), "UL:%s     ", ulBuf);
+    snprintf(buf, sizeof(buf), "UL: %s      ", ulBuf);
     _lcd->setTextColor(COL_CYAN, COL_BG);
-    _lcd->drawString(buf, 200, ny);
+    _lcd->drawString(buf, 210, ny);
 
     // ========== Bottom Section: Fans + Disk Temps ==========
     int by = BOTTOM_Y + 4;
@@ -410,10 +410,10 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
 
         // Temp in color with °C
         if (data.disk_temp[i] >= 0) {
-            snprintf(buf, sizeof(buf), "%d\xB0""C  ", data.disk_temp[i]);
+            snprintf(buf, sizeof(buf), "%d C  ", data.disk_temp[i]);
             _lcd->setTextColor(tempColor((float)data.disk_temp[i]), COL_BG);
         } else {
-            snprintf(buf, sizeof(buf), "--\xB0""C  ");
+            snprintf(buf, sizeof(buf), "-- C  ");
             _lcd->setTextColor(COL_DIVIDER, COL_BG);
         }
         _lcd->drawString(buf, cx + 100, cy);
@@ -454,7 +454,7 @@ void PCMonitorDisplay::drawCpuDetail(const HWData &data) {
     _lcd->drawString(buf, 10, y);
 
     // Large temp
-    snprintf(buf, sizeof(buf), "  %.1f\xB0""C  ", data.cpu_temp);
+    snprintf(buf, sizeof(buf), "  %.1f C  ", data.cpu_temp);
     _lcd->setTextColor(tempColor(data.cpu_temp), COL_BG);
     _lcd->drawString(buf, 200, y);
 
@@ -462,17 +462,17 @@ void PCMonitorDisplay::drawCpuDetail(const HWData &data) {
 
     // Stats row
     _lcd->setFont(&fonts::Font2);
-    snprintf(buf, sizeof(buf), "Clock: %.0f MHz  ", data.cpu_clock);
+    snprintf(buf, sizeof(buf), "Clock:  %.0f MHz  ", data.cpu_clock);
     _lcd->setTextColor(COL_CYAN, COL_BG);
     _lcd->drawString(buf, 10, y);
 
-    snprintf(buf, sizeof(buf), "Power: %.0f W   ", data.cpu_power);
+    snprintf(buf, sizeof(buf), "Power:  %.0f W   ", data.cpu_power);
     _lcd->setTextColor(COL_ORANGE, COL_BG);
     _lcd->drawString(buf, 200, y);
 
     y += 20;
 
-    snprintf(buf, sizeof(buf), "Voltage: %.3f V  ", data.cpu_voltage);
+    snprintf(buf, sizeof(buf), "Voltage:  %.3f V  ", data.cpu_voltage);
     _lcd->setTextColor(COL_LABEL, COL_BG);
     _lcd->drawString(buf, 10, y);
 
@@ -543,7 +543,7 @@ void PCMonitorDisplay::drawGpuDetail(const HWData &data) {
     _lcd->setTextColor(gpuCol, COL_BG);
     _lcd->drawString(buf, 10, y);
 
-    snprintf(buf, sizeof(buf), "  %.1f\xB0""C  ", data.gpu_temp);
+    snprintf(buf, sizeof(buf), "  %.1f C  ", data.gpu_temp);
     _lcd->setTextColor(tempColor(data.gpu_temp), COL_BG);
     _lcd->drawString(buf, 200, y);
 
@@ -552,11 +552,11 @@ void PCMonitorDisplay::drawGpuDetail(const HWData &data) {
     // Stats
     _lcd->setFont(&fonts::Font2);
 
-    snprintf(buf, sizeof(buf), "Core: %.0f MHz   ", data.gpu_core_clock);
+    snprintf(buf, sizeof(buf), "Core:  %.0f MHz   ", data.gpu_core_clock);
     _lcd->setTextColor(COL_CYAN, COL_BG);
     _lcd->drawString(buf, 10, y);
 
-    snprintf(buf, sizeof(buf), "Mem: %.0f MHz   ", data.gpu_mem_clock);
+    snprintf(buf, sizeof(buf), "Mem:  %.0f MHz   ", data.gpu_mem_clock);
     _lcd->setTextColor(COL_LABEL, COL_BG);
     _lcd->drawString(buf, 200, y);
 
@@ -567,7 +567,7 @@ void PCMonitorDisplay::drawGpuDetail(const HWData &data) {
     _lcd->drawString(buf, 10, y);
 
     if (data.gpu_hotspot > 0) {
-        snprintf(buf, sizeof(buf), "Hot Spot: %.0f\xB0""C  ", data.gpu_hotspot);
+        snprintf(buf, sizeof(buf), "Hot Spot: %.0f C  ", data.gpu_hotspot);
         _lcd->setTextColor(tempColor(data.gpu_hotspot), COL_BG);
         _lcd->drawString(buf, 200, y);
     }
@@ -722,7 +722,7 @@ void PCMonitorDisplay::drawDiskDetail(const HWData &data) {
     uint16_t sCol = (sPct < 70) ? COL_GREEN : (sPct < 90) ? COL_YELLOW : COL_RED;
     drawBar(10, y, SCREEN_W - 20, 20, sPct, sCol);
     snprintf(buf, sizeof(buf), "%.0f%%", sPct);
-    _lcd->setTextColor(COL_TEXT, sCol);
+    _lcd->setTextColor(COL_BG, sCol);
     _lcd->drawCenterString(buf, SCREEN_W / 2, y + 3);
 
     y += 28;
@@ -752,12 +752,12 @@ void PCMonitorDisplay::drawDiskDetail(const HWData &data) {
 
         // Temp
         if (data.disk_temp[i] >= 0) {
-            snprintf(buf, sizeof(buf), "%d\xB0""C  ", data.disk_temp[i]);
+            snprintf(buf, sizeof(buf), "%d C  ", data.disk_temp[i]);
             _lcd->setTextColor(tempColor((float)data.disk_temp[i]), COL_BG);
             _lcd->drawString(buf, 220, y);
         } else {
             _lcd->setTextColor(COL_DIVIDER, COL_BG);
-            _lcd->drawString("--\xB0""C ", 220, y);
+            _lcd->drawString("-- C ", 220, y);
         }
 
         // Small bar showing relative size contribution
