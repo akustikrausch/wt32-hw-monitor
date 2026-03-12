@@ -20,7 +20,7 @@ Dokumentation des Kommunikationsprotokolls zwischen Python-Script und ESP32.
 ## JSON-Beispiel
 
 ```json
-{"cpu":45.2,"gpuload":30.0,"cputemp":68.0,"gputemp":55.0,"cpuclk":4283,"cpupwr":137,"cpuvolt":1.125,"gpuvram":2048,"gpuvtot":6144,"gpuclk":1950,"gpumclk":7000,"gpupwr":120,"gpuhs":62,"gpufan":1200,"ram":62.0,"ramused":39.8,"ramtotal":64.0,"fan1":1200,"fan2":980,"stotal":116.5,"sused":92.3,"sfree":24.2,"dtemp":[38,42,35,40],"dname":["980PRO","870EVO","WD10T","ST24T"],"dsize":[1000,500,10000,24000],"netdl":31.5,"netul":5.2,"ccores":[45,32,78,12,55,66,23,89,10,44,33,67,22,90,15,50],"cpuname":"Ryzen 9 5950X","gpuname":"RTX 2060"}
+{"cpu":45.2,"gpuload":30.0,"cputemp":68.0,"gputemp":55.0,"cpuclk":4283,"cpupwr":137,"cpuvolt":1.125,"gpuvram":2048,"gpuvtot":6144,"gpuclk":1950,"gpumclk":7000,"gpupwr":120,"gpuhs":62,"gpufan":1200,"ram":62.0,"ramused":39.8,"ramtotal":64.0,"fan1":1200,"fan2":980,"stotal":116.5,"sused":92.3,"sfree":24.2,"dtemp":[38,42,35,40],"dname":["980PRO","870EVO","WD10T","ST24T"],"dsize":[1000,500,10000,24000],"netdl":31.5,"netul":5.2,"ccores":[45,32,78,12,55,66,23,89,10,44,33,67,22,90,15,50],"cpuname":"Ryzen 9 5950X","gpuname":"RTX 2060","ts":1741784400,"tzo":3600}
 ```
 
 ## Felder
@@ -72,6 +72,15 @@ Dokumentation des Kommunikationsprotokolls zwischen Python-Script und ESP32.
 | Feld   | Typ     | Einheit | Beschreibung                    |
 |--------|---------|---------|---------------------------------|
 | ccores | float[] | %       | Pro-Kern-Auslastung (max. 16)   |
+
+### Zeitsynchronisation
+
+| Feld | Typ   | Einheit  | Beschreibung                                          |
+|------|-------|----------|-------------------------------------------------------|
+| ts   | int   | Sekunden | Unix-Timestamp (UTC) vom PC                            |
+| tzo  | int   | Sekunden | Zeitzone-Offset (z.B. 3600 = CET, 7200 = CEST)       |
+
+Der ESP32 nutzt diese Daten, um im Standby-Modus eine Uhr anzuzeigen. Die Uhrzeit wird auch nach Verbindungsverlust mittels `millis()` weitergerechnet.
 
 ### Bezeichnungen
 
@@ -125,7 +134,7 @@ Documentation of the communication protocol between the Python script and ESP32.
 ## JSON Example
 
 ```json
-{"cpu":45.2,"gpuload":30.0,"cputemp":68.0,"gputemp":55.0,"cpuclk":4283,"cpupwr":137,"cpuvolt":1.125,"gpuvram":2048,"gpuvtot":6144,"gpuclk":1950,"gpumclk":7000,"gpupwr":120,"gpuhs":62,"gpufan":1200,"ram":62.0,"ramused":39.8,"ramtotal":64.0,"fan1":1200,"fan2":980,"stotal":116.5,"sused":92.3,"sfree":24.2,"dtemp":[38,42,35,40],"dname":["980PRO","870EVO","WD10T","ST24T"],"dsize":[1000,500,10000,24000],"netdl":31.5,"netul":5.2,"ccores":[45,32,78,12,55,66,23,89,10,44,33,67,22,90,15,50],"cpuname":"Ryzen 9 5950X","gpuname":"RTX 2060"}
+{"cpu":45.2,"gpuload":30.0,"cputemp":68.0,"gputemp":55.0,"cpuclk":4283,"cpupwr":137,"cpuvolt":1.125,"gpuvram":2048,"gpuvtot":6144,"gpuclk":1950,"gpumclk":7000,"gpupwr":120,"gpuhs":62,"gpufan":1200,"ram":62.0,"ramused":39.8,"ramtotal":64.0,"fan1":1200,"fan2":980,"stotal":116.5,"sused":92.3,"sfree":24.2,"dtemp":[38,42,35,40],"dname":["980PRO","870EVO","WD10T","ST24T"],"dsize":[1000,500,10000,24000],"netdl":31.5,"netul":5.2,"ccores":[45,32,78,12,55,66,23,89,10,44,33,67,22,90,15,50],"cpuname":"Ryzen 9 5950X","gpuname":"RTX 2060","ts":1741784400,"tzo":3600}
 ```
 
 ## Fields
@@ -177,6 +186,15 @@ Documentation of the communication protocol between the Python script and ESP32.
 | Field  | Type    | Unit | Description                     |
 |--------|---------|------|---------------------------------|
 | ccores | float[] | %    | Per-core load (max 16 cores)     |
+
+### Time Sync
+
+| Field | Type | Unit    | Description                                         |
+|-------|------|---------|-----------------------------------------------------|
+| ts    | int  | seconds | Unix timestamp (UTC) from PC                         |
+| tzo   | int  | seconds | Timezone offset (e.g. 3600 = CET, 7200 = CEST)     |
+
+The ESP32 uses this data to display a clock in standby mode. The time continues to be calculated via `millis()` even after connection loss.
 
 ### Names
 

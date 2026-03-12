@@ -12,6 +12,7 @@ enum ScreenState {
     SCREEN_DISK_DETAIL,
     SCREEN_FAN_DETAIL,
     SCREEN_NET_DETAIL,
+    SCREEN_STANDBY,
 };
 
 // Hardware data structure
@@ -49,6 +50,10 @@ struct HWData {
     float cpu_core_load[16]; // Per-core CPU loads %
     int   cpu_core_count; // Number of CPU cores
 
+    // Time sync (from PC)
+    unsigned long pc_timestamp;   // Unix epoch seconds (UTC)
+    int           tz_offset;      // Timezone offset in seconds (e.g. 3600=CET, 7200=CEST)
+
     char  cpu_name[32];
     char  gpu_name[32];
     bool  connected;
@@ -59,9 +64,11 @@ class PCMonitorDisplay {
 public:
     void init();
     void update(const HWData &data);
-    void showWaiting();
+    void showStandby();
+    void updateStandby();
     void handleTouch(const HWData &data);
     ScreenState getScreen() { return _screen; }
+    bool isStandby() { return _screen == SCREEN_STANDBY; }
 
 private:
     void drawBar(int x, int y, int w, int h, float percent, uint16_t color);
@@ -75,6 +82,7 @@ private:
     void drawFanDetail(const HWData &data);
     void drawNetDetail(const HWData &data);
     void drawBackButton();
+    void drawStandbyScreen();
 
     lgfx::LGFX_Device *_lcd;
     lgfx::LGFX_Sprite *_sprite;
@@ -89,6 +97,15 @@ private:
     bool  _first_draw;
     ScreenState _screen;
     unsigned long _lastTouchTime;
+
+    // Time keeping
+    unsigned long _lastTimestamp;       // Last Unix timestamp from PC (UTC)
+    int           _tzOffset;            // Timezone offset in seconds
+    unsigned long _lastTimeSyncMillis;  // millis() when last timestamp received
+    unsigned long _disconnectMillis;    // millis() when connection was lost
+    bool          _timeValid;           // Have we ever received a timestamp?
+    int           _dotAnimState;        // Dot animation frame (0-3)
+    unsigned long _lastDotAnim;         // Last dot animation update
 };
 
 extern PCMonitorDisplay display;

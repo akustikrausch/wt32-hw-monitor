@@ -21,7 +21,7 @@ void setup() {
     hwData.connected = false;
 
     display.init();
-    display.showWaiting();
+    display.showStandby();
 
     printf("Ready. Waiting for serial data...\n");
 }
@@ -41,8 +41,13 @@ void loop() {
     // Check for timeout
     if (hwData.connected && (millis() - lastDataTime > TIMEOUT_MS)) {
         hwData.connected = false;
-        display.showWaiting();
+        display.showStandby();
         printf("Connection lost - no data for %lu ms\n", TIMEOUT_MS);
+    }
+
+    // Update standby clock display every second
+    if (display.isStandby()) {
+        display.updateStandby();
     }
 
     delay(10);  // Small delay to prevent busy-loop

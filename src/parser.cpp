@@ -35,6 +35,10 @@ bool parseHWData(const char *json, HWData &data) {
         return false;
     }
 
+    // Time sync
+    data.pc_timestamp = doc["ts"] | 0UL;
+    data.tz_offset = doc["tzo"] | 3600;
+
     // Main screen data
     data.cpu_load = doc["cpu"] | 0.0f;
     data.gpu_load = doc["gpuload"] | 0.0f;

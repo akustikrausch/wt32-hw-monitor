@@ -85,6 +85,13 @@ void PCMonitorDisplay::init() {
     _first_draw = true;
     _screen = SCREEN_MAIN;
     _lastTouchTime = 0;
+    _lastTimestamp = 0;
+    _tzOffset = 3600;  // Default CET
+    _lastTimeSyncMillis = 0;
+    _disconnectMillis = 0;
+    _timeValid = false;
+    _dotAnimState = 0;
+    _lastDotAnim = 0;
     memset(_cpu_history, 0, sizeof(_cpu_history));
     memset(_gpu_history, 0, sizeof(_gpu_history));
     memset(_ram_history, 0, sizeof(_ram_history));
@@ -149,15 +156,132 @@ void PCMonitorDisplay::drawBackButton() {
     _lcd->drawString("<Back", 10, 8);
 }
 
-void PCMonitorDisplay::showWaiting() {
-    _lcd->fillScreen(COL_BG);
-    _lcd->setFont(&fonts::Font4);
-    _lcd->setTextColor(COL_LABEL, COL_BG);
-    _lcd->drawCenterString("Waiting for PC...", SCREEN_W / 2, 120);
-    _lcd->setFont(&fonts::Font2);
-    _lcd->drawCenterString("Start LibreHardwareMonitor + pc_monitor.py", SCREEN_W / 2, 160);
-    _screen = SCREEN_MAIN;
+void PCMonitorDisplay::showStandby() {
+    _disconnectMillis = millis();
+    _screen = SCREEN_STANDBY;
     _first_draw = true;
+    _dotAnimState = 0;
+    _lastDotAnim = 0;
+    _lcd->fillScreen(COL_STANDBY_BG);
+    _lcd->setBrightness(STANDBY_BRIGHTNESS);
+    drawStandbyScreen();
+}
+
+void PCMonitorDisplay::updateStandby() {
+    // Update clock every 60 seconds, dot animation every 800ms
+    unsigned long now = millis();
+
+    bool needClockUpdate = (now - _lastDotAnim >= 800);
+    if (!needClockUpdate) return;
+
+    drawStandbyScreen();
+}
+
+// German day/month names
+static const char* DAYS_DE[] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
+static const char* MONTHS_DE[] = {"", "Januar", "Februar", "Maerz", "April", "Mai", "Juni",
+                                   "Juli", "August", "September", "Oktober", "November", "Dezember"};
+
+// Helper: convert Unix timestamp to broken-down time components
+static void unixToTime(unsigned long ts, int &year, int &month, int &day,
+                        int &hour, int &minute, int &second, int &wday) {
+    // Simple Unix timestamp to date conversion
+    unsigned long t = ts;
+    second = t % 60; t /= 60;
+    minute = t % 60; t /= 60;
+    hour = t % 24;   t /= 24;
+
+    // Days since epoch (1970-01-01 was Thursday = wday 4)
+    wday = (t + 4) % 7;  // 0=Sunday
+
+    // Year calculation
+    year = 1970;
+    while (true) {
+        int daysInYear = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) ? 366 : 365;
+        if (t < (unsigned long)daysInYear) break;
+        t -= daysInYear;
+        year++;
+    }
+
+    // Month calculation
+    int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) daysInMonth[1] = 29;
+
+    month = 0;
+    while (month < 12 && t >= (unsigned long)daysInMonth[month]) {
+        t -= daysInMonth[month];
+        month++;
+    }
+    month++;  // 1-based
+    day = t + 1;
+}
+
+void PCMonitorDisplay::drawStandbyScreen() {
+    char buf[64];
+    unsigned long now = millis();
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_STANDBY_BG);
+        _first_draw = false;
+    }
+
+    // Calculate current local time
+    if (_timeValid) {
+        unsigned long elapsed = (now - _lastTimeSyncMillis) / 1000;
+        unsigned long localTs = _lastTimestamp + _tzOffset + elapsed;
+
+        int year, month, day, hour, minute, second, wday;
+        unixToTime(localTs, year, month, day, hour, minute, second, wday);
+
+        // === TIME (large, centered, dim white) ===
+        snprintf(buf, sizeof(buf), "%02d:%02d", hour, minute);
+
+        _lcd->setFont(&fonts::Font7);  // Large 7-segment style
+        _lcd->setTextColor(COL_STANDBY_TIME, COL_STANDBY_BG);
+        _lcd->drawCenterString(buf, SCREEN_W / 2, 90);
+
+        // === DATE (German format: "Do, 12. Maerz 2026") ===
+        const char* dayName = (wday >= 0 && wday < 7) ? DAYS_DE[wday] : "??";
+        const char* monthName = (month >= 1 && month <= 12) ? MONTHS_DE[month] : "???";
+        snprintf(buf, sizeof(buf), "%s, %d. %s %d", dayName, day, monthName, year);
+
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_STANDBY_DATE, COL_STANDBY_BG);
+        _lcd->drawCenterString(buf, SCREEN_W / 2, 175);
+
+        // === DISCONNECT COUNTER (bottom right) ===
+        unsigned long discSec = (now - _disconnectMillis) / 1000;
+        unsigned long discMin = discSec / 60;
+
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_STANDBY_DOT, COL_STANDBY_BG);
+        if (discMin > 0) {
+            snprintf(buf, sizeof(buf), "%lu min ", discMin);
+        } else {
+            snprintf(buf, sizeof(buf), "%lu s  ", discSec);
+        }
+        _lcd->drawRightString(buf, SCREEN_W - 16, SCREEN_H - 22);
+    } else {
+        // No time data yet — minimal display
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_STANDBY_DATE, COL_STANDBY_BG);
+        _lcd->drawCenterString("--:--", SCREEN_W / 2, 110);
+    }
+
+    // === THREE DOTS ANIMATION (bottom left, subtle) ===
+    _dotAnimState = (_dotAnimState + 1) % 4;
+    _lastDotAnim = now;
+
+    int dotX = 20;
+    int dotY = SCREEN_H - 20;
+    int dotR = 3;
+    int dotSpacing = 14;
+
+    for (int i = 0; i < 3; i++) {
+        uint16_t col = (i < _dotAnimState) ? COL_STANDBY_DOT : COL_STANDBY_BG;
+        _lcd->fillCircle(dotX + i * dotSpacing, dotY, dotR, col);
+    }
+    // When all 3 are lit, next frame clears all (state 0)
 }
 
 void PCMonitorDisplay::handleTouch(const HWData &data) {
@@ -218,6 +342,22 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
 }
 
 void PCMonitorDisplay::update(const HWData &data) {
+    // Sync time from PC
+    if (data.pc_timestamp > 0) {
+        _lastTimestamp = data.pc_timestamp;
+        _tzOffset = data.tz_offset;
+        _lastTimeSyncMillis = millis();
+        _timeValid = true;
+    }
+
+    // Coming back from standby?
+    if (_screen == SCREEN_STANDBY) {
+        _screen = SCREEN_MAIN;
+        _first_draw = true;
+        _lcd->setBrightness(200);
+        _lcd->fillScreen(COL_BG);
+    }
+
     switch (_screen) {
         case SCREEN_MAIN:       drawMainScreen(data); break;
         case SCREEN_CPU_DETAIL: drawCpuDetail(data); break;
@@ -226,6 +366,7 @@ void PCMonitorDisplay::update(const HWData &data) {
         case SCREEN_DISK_DETAIL:drawDiskDetail(data); break;
         case SCREEN_FAN_DETAIL: drawFanDetail(data); break;
         case SCREEN_NET_DETAIL: drawNetDetail(data); break;
+        case SCREEN_STANDBY:    break;  // handled by updateStandby()
     }
 
     // Update history (always, regardless of screen)

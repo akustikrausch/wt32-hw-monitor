@@ -409,7 +409,14 @@ def collect_hw_data(root):
                 cpu_voltage = val
         break
 
+    # Timestamp: UTC Unix epoch + local timezone offset
+    import datetime
+    now_local = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    utc_offset_sec = int(now_local.utcoffset().total_seconds())
+
     return {
+        "ts": int(time.time()),
+        "tzo": utc_offset_sec,
         "cpu": round(cpu_load, 1),
         "gpuload": round(gpu_load, 1),
         "cputemp": round(cpu_temp, 1),
@@ -445,8 +452,12 @@ def collect_hw_data(root):
 
 def fake_data():
     """Generate fake data for testing without LibreHardwareMonitor."""
-    import random
+    import random, datetime
+    now_local = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    utc_offset_sec = int(now_local.utcoffset().total_seconds())
     return {
+        "ts": int(time.time()),
+        "tzo": utc_offset_sec,
         "cpu": round(random.uniform(5, 95), 1),
         "gpuload": round(random.uniform(0, 80), 1),
         "cputemp": round(random.uniform(35, 85), 1),
