@@ -38,6 +38,13 @@
 #define COL_BAR_BG    0x2104  // Dark gray for bar background
 #define COL_DIVIDER   0x4208  // Medium gray
 
+// Standby screen (subtle, Apple-style)
+#define COL_STANDBY_BG    0x0000  // Pure black
+#define COL_STANDBY_TIME  0x8410  // Dim white (50% brightness)
+#define COL_STANDBY_DATE  0x4208  // Very dim gray
+#define COL_STANDBY_DOT   0x3186  // Subtle gray for dot animation
+#define STANDBY_BRIGHTNESS 100    // Low brightness (0-255)
+
 // === Layout (Y positions) — no header, start at top ===
 #define CPU_GPU_Y     2
 #define CPU_GPU_H     130

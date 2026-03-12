@@ -22,6 +22,8 @@ Zeigt CPU, GPU, RAM, Speicher, Netzwerk, Lüfter und Temperaturen — mit Touch-
 - **Anti-Flicker**: Direkte LCD-Updates ohne Vollbild-Neuzeichnung
 - **Auto-Reconnect**: Erkennt USB-Verbindungsverlust (5s Timeout)
 - **Farbkodierung**: Grün (<60 C) → Gelb (60–80 C) → Rot (>80 C)
+- **Standby-Uhr**: Bei Verbindungsverlust zeigt das Display Uhrzeit, Datum (deutsch) und Trennungsdauer — minimalistisches Apple-Design mit gedimmter Helligkeit
+- **Zeitsynchronisation**: PC sendet Unix-Timestamp + Zeitzone, ESP32 hält die Uhr auch ohne Verbindung weiter
 
 ## Architektur
 
@@ -108,7 +110,7 @@ Detaillierte Anleitung: [windows/README.md](windows/README.md)
 ## Projektstruktur
 
 ```
-pc-monitor/
+wt32-hw-monitor/
 ├── platformio.ini          PlatformIO-Konfiguration
 ├── partitions.csv          ESP32-Partitionstabelle
 ├── src/
@@ -169,6 +171,8 @@ Displays CPU, GPU, RAM, storage, network, fans and temperatures — with touch n
 - **Anti-Flicker**: Direct LCD updates without full-screen redraws
 - **Auto-Reconnect**: Detects USB connection loss (5s timeout)
 - **Color Coding**: Green (<60 C) → Yellow (60–80 C) → Red (>80 C)
+- **Standby Clock**: When disconnected, the display shows time, date (German format) and disconnect duration — minimalist Apple-style design with dimmed brightness
+- **Time Sync**: PC sends Unix timestamp + timezone, ESP32 keeps the clock running even without connection
 
 ## Architecture
 
@@ -255,7 +259,7 @@ Detailed instructions: [windows/README.md](windows/README.md)
 ## Project Structure
 
 ```
-pc-monitor/
+wt32-hw-monitor/
 ├── platformio.ini          PlatformIO configuration
 ├── partitions.csv          ESP32 partition table
 ├── src/

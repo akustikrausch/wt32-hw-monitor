@@ -8,6 +8,21 @@ Alle wesentlichen Änderungen an diesem Projekt.
 
 ---
 
+## [1.1.0] — 2026-03-12
+
+### Hinzugefügt
+
+- **Standby-Uhr**: Minimalistischer Uhrenbildschirm bei Verbindungsverlust (Apple-Style, gedimmte Helligkeit)
+- **Zeitsynchronisation**: PC sendet Unix-Timestamp (`ts`) und Zeitzone (`tzo`), ESP32 zaehlt selbststaendig weiter
+- **Datum**: Deutsche Schreibweise (z.B. "Do, 12. Maerz 2026")
+- **Trennungsdauer**: Anzeige unten rechts (Minuten/Sekunden seit Verbindungsverlust)
+- **Dot-Animation**: Drei Punkte unten links zeigen laufende Suche an
+- **Auto-Reconnect**: Python-Script erkennt USB-Portaenderungen und verbindet automatisch neu
+
+### Verbessert
+
+- **Projektname**: Umbenannt von `pc-monitor` zu `wt32-hw-monitor`
+
 ## [1.0.0] — 2026-03-12
 
 ### Hinzugefügt
@@ -75,6 +90,21 @@ Alle wesentlichen Änderungen an diesem Projekt.
 # Changelog
 
 All notable changes to this project.
+
+## [1.1.0] — 2026-03-12
+
+### Added
+
+- **Standby clock**: Minimalist clock screen on connection loss (Apple-style, dimmed brightness)
+- **Time sync**: PC sends Unix timestamp (`ts`) and timezone (`tzo`), ESP32 continues counting independently
+- **Date display**: German format (e.g., "Do, 12. Maerz 2026")
+- **Disconnect timer**: Shown bottom-right (minutes/seconds since connection lost)
+- **Dot animation**: Three dots bottom-left indicate ongoing search
+- **Auto-reconnect**: Python script detects USB port changes and reconnects automatically
+
+### Improved
+
+- **Project name**: Renamed from `pc-monitor` to `wt32-hw-monitor`
 
 ## [1.0.0] — 2026-03-12
 
