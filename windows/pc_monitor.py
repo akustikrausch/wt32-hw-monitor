@@ -158,6 +158,40 @@ def collect_hw_data(root):
             gpu_temp = val
         break  # Use first GPU
 
+    # CPU clock (average)
+    cpu_clock = 0.0
+    for cpu in cpu_nodes:
+        clk_group = find_sensor_group(cpu, "Clocks")
+        val = get_sensor_value(clk_group, "cores (average)")
+        if val is None:
+            val = get_sensor_value(clk_group, "core #1")
+        if val is not None:
+            cpu_clock = val
+        break
+
+    # CPU power (package)
+    cpu_power = 0.0
+    for cpu in cpu_nodes:
+        pwr_group = find_sensor_group(cpu, "Powers")
+        val = get_sensor_value(pwr_group, "package")
+        if val is not None:
+            cpu_power = val
+        break
+
+    # GPU VRAM
+    gpu_vram_used = 0.0
+    gpu_vram_total = 0.0
+    for gpu in gpu_nodes:
+        data_group = find_sensor_group(gpu, "Data")
+        if data_group:
+            val = get_sensor_value(data_group, "gpu memory used")
+            if val is not None:
+                gpu_vram_used = val
+            val = get_sensor_value(data_group, "gpu memory total")
+            if val is not None:
+                gpu_vram_total = val
+        break
+
     # RAM — find "Total Memory" or "Virtual Memory" node
     ram_nodes = find_hw_node(root, "ram.png")
     ram_pct = 0.0
@@ -234,6 +268,32 @@ def collect_hw_data(root):
     storage_used_tb = (storage_total_gb - storage_free_gb) / 1000.0
     storage_free_tb = storage_free_gb / 1000.0
 
+    # Disk temperatures — get temp + short name for each drive
+    disk_temps = []
+    disk_names = []
+    for hdd in hdd_nodes:
+        temp_group = find_sensor_group(hdd, "Temperatures")
+        if temp_group:
+            temps_list = get_all_sensor_values(temp_group)
+            # Use first temp (Composite or Temperature)
+            temp_val = -1
+            for t in temps_list:
+                name_l = t["name"].lower()
+                if "warning" in name_l or "critical" in name_l or "resolution" in name_l or "limit" in name_l:
+                    continue
+                temp_val = int(t["value"])
+                break
+            # Shorten drive name
+            raw_name = hdd.get("Text", "?").strip()
+            # Extract short model name
+            short = raw_name.replace("Samsung ", "").replace("SSD ", "")
+            short = short.replace("TOSHIBA ", "T:").replace("WDC ", "WD:")
+            short = short.split()[0] if short else "?"
+            if len(short) > 10:
+                short = short[:10]
+            disk_temps.append(temp_val)
+            disk_names.append(short)
+
     return {
         "cpu": round(cpu_load, 1),
         "gpuload": round(gpu_load, 1),
@@ -242,13 +302,17 @@ def collect_hw_data(root):
         "ram": round(ram_pct, 1),
         "ramused": round(ram_used, 1),
         "ramtotal": round(ram_total, 1),
+        "cpuclk": round(cpu_clock, 0),
+        "cpupwr": round(cpu_power, 0),
+        "gpuvram": round(gpu_vram_used, 0),
+        "gpuvtot": round(gpu_vram_total, 0),
         "fan1": fan_list[0],
         "fan2": fan_list[1],
-        "fan3": fan_list[2],
-        "fan4": fan_list[3],
         "stotal": round(storage_total_tb, 1),
         "sused": round(storage_used_tb, 1),
         "sfree": round(storage_free_tb, 1),
+        "dtemp": disk_temps,
+        "dname": disk_names,
         "cpuname": cpu_name,
         "gpuname": gpu_name,
     }
@@ -263,15 +327,19 @@ def fake_data():
         "cputemp": round(random.uniform(35, 85), 1),
         "gputemp": round(random.uniform(30, 75), 1),
         "ram": round(random.uniform(30, 80), 1),
-        "ramused": round(random.uniform(8, 24), 1),
+        "ramused": round(random.uniform(8, 48), 1),
         "ramtotal": 64.0,
+        "cpuclk": round(random.uniform(3000, 5000), 0),
+        "cpupwr": round(random.uniform(30, 200), 0),
+        "gpuvram": round(random.uniform(500, 5000), 0),
+        "gpuvtot": 6144.0,
         "fan1": random.randint(800, 1500),
         "fan2": random.randint(600, 1200),
-        "fan3": -1,
-        "fan4": -1,
-        "stotal": 106.5,
-        "sused": 82.3,
+        "stotal": 116.5,
+        "sused": 92.3,
         "sfree": 24.2,
+        "dtemp": [random.randint(28, 55) for _ in range(4)],
+        "dname": ["980PRO", "870EVO", "WD10T", "TOSHIBA"],
         "cpuname": "Ryzen 9 5950X",
         "gpuname": "RTX 2060",
     }

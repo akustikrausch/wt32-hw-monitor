@@ -34,19 +34,19 @@
 #define COL_RED       0xF800  // Red
 #define COL_BLUE      0x001F  // Blue
 #define COL_CYAN      0x07FF  // Cyan
+#define COL_ORANGE    0xFD20  // Orange
 #define COL_BAR_BG    0x2104  // Dark gray for bar background
 #define COL_DIVIDER   0x4208  // Medium gray
 
-// === Layout (Y positions) ===
-#define HEADER_H      28
-#define CPU_GPU_Y     (HEADER_H + 4)
-#define CPU_GPU_H     120
-#define RAM_Y         (CPU_GPU_Y + CPU_GPU_H + 4)
-#define RAM_H         30
-#define STORAGE_Y     (RAM_Y + RAM_H + 4)
-#define STORAGE_H     30
-#define FAN_Y         (STORAGE_Y + STORAGE_H + 4)
-#define FAN_H         46
+// === Layout (Y positions) — no header, start at top ===
+#define CPU_GPU_Y     2
+#define CPU_GPU_H     150
+#define RAM_Y         (CPU_GPU_Y + CPU_GPU_H + 2)
+#define RAM_H         26
+#define STORAGE_Y     (RAM_Y + RAM_H + 2)
+#define STORAGE_H     26
+#define BOTTOM_Y      (STORAGE_Y + STORAGE_H + 2)
+#define BOTTOM_H      50  // Fans + disk temps
 
 // CPU/GPU columns
 #define COL_LEFT_X    4
@@ -55,12 +55,11 @@
 #define COL_RIGHT_W   234
 
 // Bar dimensions
-#define BAR_H         16
-#define BAR_MARGIN    8
+#define BAR_H         14
 
 // Graph dimensions
 #define GRAPH_W       220
-#define GRAPH_H       50
+#define GRAPH_H       60
 
 // === Temperature thresholds ===
 #define TEMP_WARN     60
