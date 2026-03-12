@@ -8,7 +8,7 @@ Alle wesentlichen Änderungen an diesem Projekt.
 
 ---
 
-## [1.0.0] — 2025-03-12
+## [1.0.0] — 2026-03-12
 
 ### Hinzugefügt
 
@@ -41,7 +41,7 @@ Alle wesentlichen Änderungen an diesem Projekt.
 - Verschwendeter Platz am unteren Bildschirmrand
 - Zu kleine Schrift im unteren Bereich
 
-## [0.2.0] — 2025-03-12
+## [0.2.0] — 2026-03-12
 
 ### Hinzugefügt
 
@@ -56,7 +56,7 @@ Alle wesentlichen Änderungen an diesem Projekt.
 - Header entfernt — mehr Platz für Daten
 - Verlaufsgraphen für CPU und GPU (60 Sekunden)
 
-## [0.1.0] — 2025-03-12
+## [0.1.0] — 2026-03-12
 
 ### Erster Release
 
@@ -76,7 +76,7 @@ Alle wesentlichen Änderungen an diesem Projekt.
 
 All notable changes to this project.
 
-## [1.0.0] — 2025-03-12
+## [1.0.0] — 2026-03-12
 
 ### Added
 
@@ -109,7 +109,7 @@ All notable changes to this project.
 - Wasted space at the bottom of the screen
 - Too-small font in the bottom section
 
-## [0.2.0] — 2025-03-12
+## [0.2.0] — 2026-03-12
 
 ### Added
 
@@ -124,7 +124,7 @@ All notable changes to this project.
 - Header removed — more space for data
 - History graphs for CPU and GPU (60 seconds)
 
-## [0.1.0] — 2025-03-12
+## [0.1.0] — 2026-03-12
 
 ### Initial Release
 
