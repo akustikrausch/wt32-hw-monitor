@@ -40,13 +40,22 @@
 
 // === Layout (Y positions) — no header, start at top ===
 #define CPU_GPU_Y     2
-#define CPU_GPU_H     150
+#define CPU_GPU_H     130
 #define RAM_Y         (CPU_GPU_Y + CPU_GPU_H + 2)
-#define RAM_H         26
+#define RAM_H         22
 #define STORAGE_Y     (RAM_Y + RAM_H + 2)
-#define STORAGE_H     26
-#define BOTTOM_Y      (STORAGE_Y + STORAGE_H + 2)
-#define BOTTOM_H      50  // Fans + disk temps
+#define STORAGE_H     22
+#define NET_Y         (STORAGE_Y + STORAGE_H + 2)
+#define NET_H         22
+#define BOTTOM_Y      (NET_Y + NET_H + 2)
+#define BOTTOM_H      40  // Fans + disk temps
+
+// === Back button (detail screens) ===
+#define BACK_BTN_W    50
+#define BACK_BTN_H    24
+
+// === Touch debounce ===
+#define TOUCH_DEBOUNCE_MS 400
 
 // CPU/GPU columns
 #define COL_LEFT_X    4
@@ -59,7 +68,7 @@
 
 // Graph dimensions
 #define GRAPH_W       220
-#define GRAPH_H       60
+#define GRAPH_H       50
 
 // === Temperature thresholds ===
 #define TEMP_WARN     60
