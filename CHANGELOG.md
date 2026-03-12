@@ -46,7 +46,7 @@ Alle wesentlichen Änderungen an diesem Projekt.
 - **Disk-Temperaturen**: 2-Spalten-Layout für bessere Lesbarkeit
 - **Einheiten-Abstände**: Leerzeichen vor MHz, W, MB, nach DL:/UL:
 - **Textkontrast**: Schwarzer Text auf farbigen Balken (statt weiß auf gelb)
-- **Disk-Namen**: Aggressivere Verkürzung (z.B. ST24000NM007H → ST24T)
+- **Disk-Namen**: Aggressivere Verkürzung (z.B. WD_BLACK SN850X → SN850X)
 - **JSON-Puffer** auf 2048 Bytes erhöht
 
 ### Behoben
@@ -129,7 +129,7 @@ All notable changes to this project.
 - **Disk temperatures**: 2-column layout for better readability
 - **Unit spacing**: Spaces before MHz, W, MB, after DL:/UL:
 - **Text contrast**: Black text on colored bars (instead of white on yellow)
-- **Disk names**: More aggressive shortening (e.g., ST24000NM007H → ST24T)
+- **Disk names**: More aggressive shortening (e.g., WD_BLACK SN850X → SN850X)
 - **JSON buffer** increased to 2048 bytes
 
 ### Fixed
