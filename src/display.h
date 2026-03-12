@@ -13,6 +13,9 @@ struct HWData {
     float cpu_temp;      // CPU temperature °C
     float gpu_temp;      // GPU temperature °C
     int   fan[4];        // Fan RPMs (-1 = not present)
+    float storage_total_tb;  // Total storage in TB
+    float storage_used_tb;   // Used storage in TB
+    float storage_free_tb;   // Free storage in TB
     char  cpu_name[32];  // CPU model name
     char  gpu_name[32];  // GPU model name
     bool  connected;     // Data received recently
@@ -32,6 +35,7 @@ private:
     void drawGraph(int x, int y, int w, int h, float *history, int len, uint16_t color);
     void drawTemp(int x, int y, float temp);
     void drawFanSection(const HWData &data);
+    void drawStorageSection(const HWData &data);
     uint16_t tempColor(float temp);
 
     lgfx::LGFX_Device *_lcd;

@@ -33,7 +33,7 @@ def find_esp32_port():
     ports = serial.tools.list_ports.comports()
     for p in ports:
         desc = (p.description or "").lower()
-        if "cp210" in desc or "ch340" in desc or "usb" in desc:
+        if "cp210" in desc or "ch340" in desc:
             print(f"Found ESP32 on {p.device}: {p.description}")
             return p.device
     if ports:
@@ -42,121 +42,197 @@ def find_esp32_port():
     return None
 
 
-def find_sensor(node, sensor_type, name_contains=None):
-    """Recursively find a sensor value in the LHM JSON tree."""
-    if "Children" in node:
-        for child in node["Children"]:
-            # Check if this node has matching sensor
-            if child.get("SensorType") == sensor_type:
-                if name_contains is None or name_contains.lower() in child.get("Text", "").lower():
-                    val = child.get("Value", "0")
-                    # Parse value like "45.2 %" or "68 °C" or "1200 RPM"
-                    val = val.split()[0].replace(",", ".")
-                    try:
-                        return float(val)
-                    except ValueError:
-                        return 0.0
-            # Recurse
-            result = find_sensor(child, sensor_type, name_contains)
-            if result is not None:
-                return result
-    return None
+def parse_value(val_str):
+    """Parse LHM value string like '35,3 %' or '82,3 °C' or '1427 RPM' to float."""
+    if not val_str:
+        return 0.0
+    # Take first token, replace comma with dot
+    token = val_str.strip().split()[0].replace(",", ".")
+    try:
+        return float(token)
+    except ValueError:
+        return 0.0
 
 
-def find_all_sensors(node, sensor_type, results=None):
-    """Find all sensors of a given type."""
-    if results is None:
-        results = []
-    if "Children" in node:
-        for child in node["Children"]:
-            if child.get("SensorType") == sensor_type:
-                val_str = child.get("Value", "0").split()[0].replace(",", ".")
-                try:
-                    val = float(val_str)
-                except ValueError:
-                    val = 0.0
-                results.append({"name": child.get("Text", ""), "value": val})
-            find_all_sensors(child, sensor_type, results)
+def find_hw_node(node, image_key):
+    """Find a hardware node by its ImageURL containing the key (e.g. 'cpu', 'nvidia')."""
+    results = []
+    img = node.get("ImageURL", "")
+    if image_key in img.lower():
+        results.append(node)
+    for child in node.get("Children", []):
+        results.extend(find_hw_node(child, image_key))
     return results
 
 
-def find_hw_name(node, hw_type):
-    """Find hardware name (CPU, GPU) from the tree."""
-    if "Children" in node:
-        for child in node["Children"]:
-            text = child.get("Text", "")
-            image = child.get("ImageURL", "")
-            if hw_type.lower() in image.lower() or hw_type.lower() in text.lower():
-                return text
-            result = find_hw_name(child, hw_type)
-            if result:
-                return result
+def find_sensor_group(node, group_name):
+    """Find a child node whose Text matches group_name (e.g. 'Load', 'Temperatures')."""
+    for child in node.get("Children", []):
+        if child.get("Text", "").lower() == group_name.lower():
+            return child
     return None
 
 
-def collect_hw_data(lhm_data):
-    """Extract hardware metrics from LibreHardwareMonitor JSON."""
-    root = lhm_data
+def get_sensor_value(group_node, name_contains):
+    """Get a sensor value from a group node by partial name match."""
+    if group_node is None:
+        return None
+    for child in group_node.get("Children", []):
+        text = child.get("Text", "").lower()
+        if name_contains.lower() in text:
+            return parse_value(child.get("Value", ""))
+    return None
 
-    # Find CPU and GPU nodes
-    cpu_name = find_hw_name(root, "cpu") or "Unknown CPU"
-    gpu_name = find_hw_name(root, "gpu") or "Unknown GPU"
 
-    # Shorten names
-    for prefix in ["Intel ", "AMD ", "NVIDIA ", "GeForce "]:
-        cpu_name = cpu_name.replace(prefix, "")
-        gpu_name = gpu_name.replace(prefix, "")
-    if len(cpu_name) > 30:
-        cpu_name = cpu_name[:30]
-    if len(gpu_name) > 30:
-        gpu_name = gpu_name[:30]
+def get_all_sensor_values(group_node):
+    """Get all sensor name/value pairs from a group node."""
+    results = []
+    if group_node is None:
+        return results
+    for child in group_node.get("Children", []):
+        results.append({
+            "name": child.get("Text", ""),
+            "value": parse_value(child.get("Value", ""))
+        })
+    return results
 
-    # CPU load (total)
-    loads = find_all_sensors(root, "Load")
-    cpu_load = 0
-    gpu_load = 0
-    ram_pct = 0
-    for s in loads:
-        name = s["name"].lower()
-        if "cpu total" in name:
-            cpu_load = s["value"]
-        elif "gpu core" in name:
-            gpu_load = s["value"]
-        elif "memory" in name and "used" not in name and s["value"] < 101:
-            ram_pct = s["value"]
 
-    # Temperatures
-    temps = find_all_sensors(root, "Temperature")
-    cpu_temp = 0
-    gpu_temp = 0
-    for s in temps:
-        name = s["name"].lower()
-        if "cpu package" in name or "cpu" in name and cpu_temp == 0:
-            cpu_temp = s["value"]
-        elif "gpu core" in name or "gpu" in name and gpu_temp == 0:
-            gpu_temp = s["value"]
+def collect_hw_data(root):
+    """Extract hardware metrics from LibreHardwareMonitor JSON tree."""
 
-    # Fans
-    fans = find_all_sensors(root, "Fan")
-    fan_list = [int(f["value"]) for f in fans[:4]]
-    while len(fan_list) < 4:
-        fan_list.append(-1)
+    # Find CPU node (image contains 'cpu')
+    cpu_nodes = find_hw_node(root, "cpu.png")
+    cpu_name = "Unknown CPU"
+    cpu_load = 0.0
+    cpu_temp = 0.0
 
-    # RAM
-    data_nodes = find_all_sensors(root, "Data")
-    ram_used = 0
-    ram_total = 0
-    for s in data_nodes:
-        name = s["name"].lower()
-        if "used memory" in name or "memory used" in name:
-            ram_used = s["value"]
-        elif "available memory" in name:
-            ram_total = ram_used + s["value"]
+    for cpu in cpu_nodes:
+        cpu_name = cpu.get("Text", "Unknown CPU")
+        # Shorten name
+        for prefix in ["Intel ", "AMD "]:
+            cpu_name = cpu_name.replace(prefix, "")
+        if len(cpu_name) > 30:
+            cpu_name = cpu_name[:30]
+
+        # Load
+        load_group = find_sensor_group(cpu, "Load")
+        val = get_sensor_value(load_group, "cpu total")
+        if val is not None:
+            cpu_load = val
+
+        # Temperature
+        temp_group = find_sensor_group(cpu, "Temperatures")
+        # Prefer "Core (Tctl" for AMD, "CPU Package" for Intel
+        val = get_sensor_value(temp_group, "tctl")
+        if val is None:
+            val = get_sensor_value(temp_group, "package")
+        if val is None:
+            val = get_sensor_value(temp_group, "core")
+        if val is not None:
+            cpu_temp = val
+        break  # Use first CPU
+
+    # Find GPU node (nvidia or amd/ati gpu)
+    gpu_nodes = find_hw_node(root, "nvidia.png")
+    if not gpu_nodes:
+        gpu_nodes = find_hw_node(root, "amd.png")
+    gpu_name = "Unknown GPU"
+    gpu_load = 0.0
+    gpu_temp = 0.0
+
+    for gpu in gpu_nodes:
+        gpu_name = gpu.get("Text", "Unknown GPU")
+        for prefix in ["NVIDIA ", "AMD ", "GeForce "]:
+            gpu_name = gpu_name.replace(prefix, "")
+        if len(gpu_name) > 30:
+            gpu_name = gpu_name[:30]
+
+        load_group = find_sensor_group(gpu, "Load")
+        val = get_sensor_value(load_group, "gpu core")
+        if val is not None:
+            gpu_load = val
+
+        temp_group = find_sensor_group(gpu, "Temperatures")
+        val = get_sensor_value(temp_group, "gpu core")
+        if val is not None:
+            gpu_temp = val
+        break  # Use first GPU
+
+    # RAM — find "Total Memory" or "Virtual Memory" node
+    ram_nodes = find_hw_node(root, "ram.png")
+    ram_pct = 0.0
+    ram_used = 0.0
+    ram_total = 0.0
+
+    # Prefer "Total Memory" over "Virtual Memory"
+    for ram in ram_nodes:
+        text = ram.get("Text", "").lower()
+        if "total memory" in text:
+            load_group = find_sensor_group(ram, "Load")
+            val = get_sensor_value(load_group, "memory")
+            if val is not None:
+                ram_pct = val
+            data_group = find_sensor_group(ram, "Data")
+            val = get_sensor_value(data_group, "memory used")
+            if val is not None:
+                ram_used = val
+            val = get_sensor_value(data_group, "memory available")
+            if val is not None:
+                ram_total = ram_used + val
+            break
 
     if ram_total == 0:
-        ram_total = 32.0  # fallback
-    if ram_pct == 0 and ram_total > 0:
-        ram_pct = (ram_used / ram_total) * 100
+        # Fallback: use Virtual Memory
+        for ram in ram_nodes:
+            text = ram.get("Text", "").lower()
+            if "virtual" in text:
+                load_group = find_sensor_group(ram, "Load")
+                val = get_sensor_value(load_group, "memory")
+                if val is not None:
+                    ram_pct = val
+                data_group = find_sensor_group(ram, "Data")
+                val = get_sensor_value(data_group, "memory used")
+                if val is not None:
+                    ram_used = val
+                val = get_sensor_value(data_group, "memory available")
+                if val is not None:
+                    ram_total = ram_used + val
+                break
+
+    if ram_total == 0:
+        ram_total = 64.0  # fallback
+
+    # Fans — from mainboard chip node
+    fan_list = [-1, -1, -1, -1]
+    mb_nodes = find_hw_node(root, "chip.png")
+    for chip in mb_nodes:
+        fan_group = find_sensor_group(chip, "Fans")
+        if fan_group:
+            fans = get_all_sensor_values(fan_group)
+            idx = 0
+            for f in fans:
+                if f["value"] > 0 and idx < 4:
+                    fan_list[idx] = int(f["value"])
+                    idx += 1
+            break
+
+    # Storage — sum up all drives (Total Space / Free Space from Data groups under hdd.png nodes)
+    hdd_nodes = find_hw_node(root, "hdd.png")
+    storage_total_gb = 0.0
+    storage_free_gb = 0.0
+    for hdd in hdd_nodes:
+        data_group = find_sensor_group(hdd, "Data")
+        if data_group:
+            total = get_sensor_value(data_group, "total space")
+            free = get_sensor_value(data_group, "free space")
+            if total is not None:
+                storage_total_gb += total
+            if free is not None:
+                storage_free_gb += free
+
+    storage_total_tb = storage_total_gb / 1000.0
+    storage_used_tb = (storage_total_gb - storage_free_gb) / 1000.0
+    storage_free_tb = storage_free_gb / 1000.0
 
     return {
         "cpu": round(cpu_load, 1),
@@ -170,6 +246,9 @@ def collect_hw_data(lhm_data):
         "fan2": fan_list[1],
         "fan3": fan_list[2],
         "fan4": fan_list[3],
+        "stotal": round(storage_total_tb, 1),
+        "sused": round(storage_used_tb, 1),
+        "sfree": round(storage_free_tb, 1),
         "cpuname": cpu_name,
         "gpuname": gpu_name,
     }
@@ -185,13 +264,16 @@ def fake_data():
         "gputemp": round(random.uniform(30, 75), 1),
         "ram": round(random.uniform(30, 80), 1),
         "ramused": round(random.uniform(8, 24), 1),
-        "ramtotal": 32.0,
+        "ramtotal": 64.0,
         "fan1": random.randint(800, 1500),
         "fan2": random.randint(600, 1200),
         "fan3": -1,
         "fan4": -1,
-        "cpuname": "i7-12700K",
-        "gpuname": "RTX 3070",
+        "stotal": 106.5,
+        "sused": 82.3,
+        "sfree": 24.2,
+        "cpuname": "Ryzen 9 5950X",
+        "gpuname": "RTX 2060",
     }
 
 
@@ -231,7 +313,7 @@ def main():
                     lhm = resp.json()
                     data = collect_hw_data(lhm)
                 except requests.RequestException as e:
-                    print(f"WARNING: Cannot reach LibreHardwareMonitor: {e}")
+                    print(f"\nWARNING: Cannot reach LibreHardwareMonitor: {e}")
                     time.sleep(2)
                     continue
 
@@ -240,11 +322,15 @@ def main():
             if ser:
                 ser.write(line.encode("utf-8"))
 
-            # Print to console (compact)
-            print(f"CPU:{data['cpu']:5.1f}% {data['cputemp']:4.1f}C | "
-                  f"GPU:{data['gpuload']:5.1f}% {data['gputemp']:4.1f}C | "
-                  f"RAM:{data['ram']:4.0f}% | "
-                  f"FAN:{data['fan1']}/{data['fan2']}", end="\r")
+            # Print to console
+            sys.stdout.write(
+                f"\rCPU:{data['cpu']:5.1f}% {data['cputemp']:4.1f}C | "
+                f"GPU:{data['gpuload']:5.1f}% {data['gputemp']:4.1f}C | "
+                f"RAM:{data['ram']:4.0f}% | "
+                f"DISK:{data['sused']:.1f}/{data['stotal']:.1f}TB | "
+                f"FAN:{data['fan1']}/{data['fan2']}  "
+            )
+            sys.stdout.flush()
 
             time.sleep(UPDATE_INTERVAL)
 

@@ -48,6 +48,10 @@ bool parseHWData(const char *json, HWData &data) {
     data.fan[2] = doc["fan3"] | -1;
     data.fan[3] = doc["fan4"] | -1;
 
+    data.storage_total_tb = doc["stotal"] | 0.0f;
+    data.storage_used_tb = doc["sused"] | 0.0f;
+    data.storage_free_tb = doc["sfree"] | 0.0f;
+
     const char *cpuName = doc["cpuname"] | "Unknown CPU";
     const char *gpuName = doc["gpuname"] | "Unknown GPU";
     strncpy(data.cpu_name, cpuName, sizeof(data.cpu_name) - 1);

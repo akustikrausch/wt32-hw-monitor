@@ -40,11 +40,13 @@
 // === Layout (Y positions) ===
 #define HEADER_H      28
 #define CPU_GPU_Y     (HEADER_H + 4)
-#define CPU_GPU_H     130
+#define CPU_GPU_H     120
 #define RAM_Y         (CPU_GPU_Y + CPU_GPU_H + 4)
-#define RAM_H         36
-#define FAN_Y         (RAM_Y + RAM_H + 4)
-#define FAN_H         50
+#define RAM_H         30
+#define STORAGE_Y     (RAM_Y + RAM_H + 4)
+#define STORAGE_H     30
+#define FAN_Y         (STORAGE_Y + STORAGE_H + 4)
+#define FAN_H         46
 
 // CPU/GPU columns
 #define COL_LEFT_X    4
