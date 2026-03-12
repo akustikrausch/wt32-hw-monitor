@@ -80,21 +80,34 @@ Full protocol documentation: [docs/PROTOCOL.md](../docs/PROTOCOL.md)
 
 ## Autostart Setup
 
+The monitor runs completely hidden in the background — no console window. It auto-restarts on crash and logs output to `pc_monitor.log`.
+
 ### Option A: Startup Folder (recommended)
 
 1. `Win+R` → `shell:startup` → Enter
-2. Copy shortcut to `start_monitor.bat` into this folder
-3. `start_monitor.bat` is located in the `windows/` directory
+2. Create a shortcut with:
+   - **Target:** `C:\path\to\pythonw.exe "C:\path\to\windows\start_hidden.pyw"`
+   - **Start in:** `C:\path\to\wt32-hw-monitor\windows`
+3. The hidden launcher waits 15 seconds after boot for USB drivers and LibreHardwareMonitor to be ready
 
 ### Option B: Task Scheduler
 
 1. Open Task Scheduler (`taskschd.msc`)
 2. Create a new task
 3. Trigger: At log on
-4. Action: Run `start_monitor.bat`
-5. Enable "Run with highest privileges" (optional)
+4. Action: Run `pythonw.exe` with argument `start_hidden.pyw`
+5. Start in: `windows/` directory
 
 **Note:** LibreHardwareMonitor also needs to auto-start — best done via its own autostart option.
+
+### Stopping the Monitor
+
+Since there is no visible window, use Task Manager or:
+
+```bash
+taskkill /F /IM python.exe
+taskkill /F /IM pythonw.exe
+```
 
 ## Troubleshooting
 
