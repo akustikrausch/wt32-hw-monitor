@@ -1,129 +1,3 @@
-# Fehlerbehebung / Troubleshooting
-
-Häufige Probleme und deren Lösungen.
-
----
-
-**[English version below](#english)**
-
----
-
-## Verbindungsprobleme
-
-### "Cannot reach LibreHardwareMonitor"
-
-**Ursache:** Das Python-Script kann die LHM-API nicht erreichen.
-
-**Lösung:**
-
-1. LibreHardwareMonitor als **Administrator** starten
-2. Menü: Options → Remote Web Server → **Run** aktivieren
-3. Prüfen: http://localhost:8085/data.json im Browser öffnen
-4. Falls Port 8085 blockiert ist: Firewall-Einstellungen prüfen
-
-### "No serial port found"
-
-**Ursache:** ESP32 wird nicht erkannt.
-
-**Lösung:**
-
-1. USB-Kabel prüfen (muss ein Datenkabel sein, kein reines Ladekabel)
-2. WT32-SC01 im Geräte-Manager prüfen (sollte als "CP210x" oder "CH340" erscheinen)
-3. Treiber installieren: [CP210x](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers) oder [CH340](http://www.wch-ic.com/downloads/CH341SER_ZIP.html)
-4. COM-Port manuell angeben: `python pc_monitor.py --port COM3`
-
-### COM-Port belegt
-
-**Ursache:** Ein anderes Programm nutzt den COM-Port (Arduino IDE, Serial Monitor, etc.).
-
-**Lösung:**
-
-1. Alle Programme schließen, die den COM-Port nutzen könnten
-2. Im Task-Manager nach `python.exe` suchen und ggf. beenden
-3. Alternativ: ESP32 kurz trennen und neu verbinden
-
-### Display zeigt "Waiting for PC..."
-
-**Ursache:** ESP32 empfängt keine Daten.
-
-**Lösung:**
-
-1. Python-Script läuft? → Konsole prüfen
-2. LibreHardwareMonitor läuft? → Web Server aktiv?
-3. Richtiger COM-Port? → `--port` Parameter nutzen
-4. USB-Kabel defekt? → Anderes Kabel testen
-
-## Anzeige-Probleme
-
-### Alle Werte zeigen 0
-
-**Ursache:** LibreHardwareMonitor hat die Sensoren noch nicht initialisiert.
-
-**Lösung:** Einige Sekunden warten. LHM braucht nach dem Start etwas Zeit, bis alle Sensoren Werte liefern.
-
-### Temperaturen erscheinen falsch
-
-**Ursache:** Manche Sensoren liefern erst nach einigen Update-Zyklen korrekte Werte.
-
-**Lösung:** 5–10 Sekunden warten, die Werte stabilisieren sich automatisch.
-
-### Display flackert
-
-**Ursache:** Sollte nicht auftreten (Anti-Flicker-Technik aktiv).
-
-**Lösung:** Falls dennoch Flackern auftritt:
-
-1. USB-Kabel auf festen Sitz prüfen
-2. Firmware neu flashen: `pio run -t upload`
-
-### Text zu klein / unleserlich
-
-**Ursache:** Display-Auflösung (480×320) begrenzt die Textgröße.
-
-**Lösung:** Die Hauptwerte nutzen Font2/Font4 für Lesbarkeit. Detail-Ansichten (Touch) zeigen größere Werte.
-
-## Python-Script-Probleme
-
-### Script stürzt ab mit "SerialException"
-
-**Ursache:** USB-Verbindung unterbrochen.
-
-**Lösung:** Das Script erkennt Verbindungsverlust und wartet auf erneute Verbindung. Falls nicht:
-
-1. ESP32 trennen und neu verbinden
-2. Script neu starten
-
-### Hohe CPU-Auslastung durch das Script
-
-**Ursache:** Normalerweise minimal (<1 %).
-
-**Lösung:** Falls unerwartet hoch:
-
-1. Update-Intervall erhöhen (Standard: 0,5s)
-2. LHM-Web-Server auf Erreichbarkeit prüfen (Timeouts verursachen Retries)
-
-## Build-Probleme (PlatformIO)
-
-### Kompilierungsfehler
-
-**Lösung:**
-
-1. PlatformIO aktualisieren: `pio upgrade`
-2. Bibliotheken neu installieren: `pio lib install`
-3. Build-Cache löschen: `.pio/`-Ordner löschen, dann `pio run`
-
-### Upload schlägt fehl
-
-**Lösung:**
-
-1. COM-Port durch anderes Programm belegt? → Schließen
-2. Boot-Modus: Auf manchen Boards GPIO0 beim Einschalten halten
-3. Upload-Geschwindigkeit reduzieren: In `platformio.ini` → `upload_speed = 460800`
-
----
-
-<a id="english"></a>
-
 # Troubleshooting
 
 Common problems and their solutions.
@@ -162,9 +36,9 @@ Common problems and their solutions.
 2. Check Task Manager for `python.exe` and terminate if needed
 3. Alternatively: Disconnect and reconnect the ESP32
 
-### Display Shows "Waiting for PC..."
+### Display Shows Standby Clock Instead of Data
 
-**Cause:** ESP32 is not receiving data.
+**Cause:** ESP32 is not receiving data from the Python script.
 
 **Solution:**
 
@@ -208,7 +82,7 @@ Common problems and their solutions.
 
 **Cause:** USB connection interrupted.
 
-**Solution:** The script detects connection loss and waits for reconnection. If not:
+**Solution:** The script automatically detects connection loss and reconnects. If it doesn't recover:
 
 1. Disconnect and reconnect the ESP32
 2. Restart the script

@@ -1,122 +1,3 @@
-# Installationsanleitung / Installation Guide
-
-Schritt-für-Schritt-Anleitung zur Einrichtung des PC Hardware Monitors.
-
----
-
-**[English version below](#english)**
-
----
-
-## Übersicht
-
-Das System besteht aus zwei Teilen:
-
-1. **ESP32-Firmware** (WT32-SC01) — zeigt die Daten an
-2. **Python-Script** (Windows) — sammelt die Daten und sendet sie per USB
-
-## Teil 1: ESP32-Firmware flashen
-
-### Voraussetzungen
-
-- [PlatformIO](https://platformio.org/) installiert (als CLI oder VS Code Extension)
-- WT32-SC01 per USB verbunden
-- CP210x-Treiber installiert (wird meist automatisch erkannt)
-
-### Schritte
-
-1. Repository klonen oder herunterladen:
-
-```bash
-git clone <repository-url>
-cd pc-monitor
-```
-
-2. Firmware kompilieren und flashen:
-
-```bash
-pio run -t upload
-```
-
-3. Nach erfolgreichem Upload zeigt das Display "Waiting for PC..."
-
-### PlatformIO-Konfiguration
-
-Die `platformio.ini` ist bereits vorkonfiguriert:
-
-- Board: `esp-wrover-kit` (kompatibel mit WT32-SC01)
-- Framework: Arduino
-- Flash-Modus: QIO, 80 MHz
-- Bibliotheken: LovyanGFX, ArduinoJson v7
-
-### Speicherverbrauch
-
-- Flash: ~20 % (von 4 MB)
-- RAM: ~9 % (von 320 KB)
-- Kein PSRAM nötig
-
-## Teil 2: Windows-Seite einrichten
-
-### 2.1 LibreHardwareMonitor installieren
-
-**Option A — Download:**
-
-https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases
-
-**Option B — winget:**
-
-```bash
-winget install LibreHardwareMonitor.LibreHardwareMonitor
-```
-
-**Konfiguration:**
-
-1. LibreHardwareMonitor als **Administrator** starten
-2. Menü: Options → Remote Web Server → **Run**
-3. Prüfen: http://localhost:8085/data.json sollte JSON-Daten anzeigen
-
-### 2.2 Python einrichten
-
-1. Python 3 installieren: https://www.python.org/downloads/
-2. Abhängigkeiten installieren:
-
-```bash
-cd windows
-pip install -r requirements.txt
-```
-
-### 2.3 Script starten
-
-```bash
-python pc_monitor.py
-```
-
-Das Script erkennt den ESP32 automatisch am CP210x/CH340-Treiber. Falls nicht:
-
-```bash
-python pc_monitor.py --port COM3
-```
-
-### 2.4 Autostart einrichten (optional)
-
-1. `Win+R` → `shell:startup` → Enter
-2. Die Datei `start_monitor.bat` (im `windows/`-Ordner) als Verknüpfung dorthin kopieren
-3. LibreHardwareMonitor ebenfalls auf Autostart stellen
-
-## Verifikation
-
-Nach erfolgreicher Einrichtung:
-
-1. LibreHardwareMonitor läuft (als Admin, Web Server aktiv)
-2. Python-Script zeigt Statuszeile in der Konsole
-3. ESP32-Display zeigt Echtzeit-Daten
-4. Grüner Punkt oben rechts = Verbindung aktiv
-5. Tippe auf CPU/GPU/RAM/etc. für Detail-Ansichten
-
----
-
-<a id="english"></a>
-
 # Installation Guide
 
 Step-by-step guide for setting up the PC Hardware Monitor.
@@ -142,7 +23,7 @@ The system consists of two parts:
 
 ```bash
 git clone <repository-url>
-cd pc-monitor
+cd wt32-hw-monitor
 ```
 
 2. Compile and flash the firmware:
@@ -151,7 +32,7 @@ cd pc-monitor
 pio run -t upload
 ```
 
-3. After successful upload, the display shows "Waiting for PC..."
+3. After successful upload, the display shows a standby clock screen
 
 ### PlatformIO Configuration
 

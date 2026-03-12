@@ -1,125 +1,5 @@
 # PC Hardware Monitor — Windows Setup
 
-Anleitung zur Einrichtung der Windows-Seite des PC Hardware Monitors.
-
----
-
-**[English version below](#english)**
-
----
-
-## Voraussetzungen
-
-### 1. LibreHardwareMonitor
-
-Download: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases
-
-Oder per winget:
-
-```bash
-winget install LibreHardwareMonitor.LibreHardwareMonitor
-```
-
-**Wichtig:**
-
-- **Als Administrator starten** (nötig für Hardware-Sensorzugriff)
-- Im Menü: Options → Remote Web Server → Run
-- Standardport: **8085** (http://localhost:8085/data.json)
-- LibreHardwareMonitor muss laufen, bevor das Python-Script gestartet wird
-
-### 2. Python 3
-
-Download: https://www.python.org/downloads/
-
-Abhängigkeiten installieren:
-
-```bash
-cd windows
-pip install -r requirements.txt
-```
-
-Benötigte Pakete: `pyserial`, `requests`
-
-### 3. ESP32 (WT32-SC01)
-
-- Per USB mit dem PC verbinden
-- Treiber: CP210x oder CH340 (wird meist automatisch installiert)
-- Der COM-Port wird automatisch erkannt
-
-## Verwendung
-
-```bash
-# Auto-Erkennung des ESP32 COM-Ports
-python pc_monitor.py
-
-# COM-Port manuell angeben
-python pc_monitor.py --port COM3
-
-# Test-Modus (Fake-Daten, kein ESP32 nötig)
-python pc_monitor.py --test
-```
-
-### Konsolenausgabe
-
-Das Script zeigt eine fortlaufende Statuszeile:
-
-```
-CPU: 38.5% 62.0C | GPU: 42.0% 48.0C | RAM:  58% | DISK:5.8/8.0TB | FAN:1100/850
-```
-
-## Gesendete Daten
-
-Das Script liest 2× pro Sekunde folgende Werte aus LibreHardwareMonitor und sendet sie als kompaktes JSON über USB Serial:
-
-| Kategorie | Werte |
-|-----------|-------|
-| CPU       | Auslastung, Temperatur, Durchschnittstakt, Package Power, Spannung, Pro-Kern-Lasten |
-| GPU       | Auslastung, Temperatur, VRAM, Core-Takt, Memory-Takt, Leistung, Hot Spot, Lüfter-RPM |
-| RAM       | Auslastung (%), Used/Total in GB |
-| Speicher  | Gesamtkapazität über alle Laufwerke (Total/Used/Free in TB) |
-| Disks     | Temperatur, Kurzname und Kapazität pro Laufwerk |
-| Lüfter    | RPM-Werte aktiver Mainboard-Lüfter |
-| Netzwerk  | Download/Upload-Durchsatz in KB/s |
-
-Vollständige Protokoll-Dokumentation: [docs/PROTOCOL.md](../docs/PROTOCOL.md)
-
-## Autostart einrichten
-
-### Option A: Startup-Ordner (empfohlen)
-
-1. `Win+R` → `shell:startup` → Enter
-2. Verknüpfung zu `start_monitor.bat` in diesen Ordner kopieren
-3. `start_monitor.bat` liegt im `windows/`-Verzeichnis
-
-### Option B: Aufgabenplanung
-
-1. Aufgabenplanung öffnen (`taskschd.msc`)
-2. Neue Aufgabe erstellen
-3. Trigger: Bei Anmeldung
-4. Aktion: `start_monitor.bat` ausführen
-5. "Mit höchsten Privilegien ausführen" aktivieren (optional)
-
-**Hinweis:** LibreHardwareMonitor muss ebenfalls automatisch starten — am besten über dessen eigene Autostart-Option.
-
-## Fehlerbehebung
-
-Siehe [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) für eine vollständige Liste.
-
-Kurzübersicht:
-
-| Problem | Lösung |
-|---------|--------|
-| "Cannot reach LibreHardwareMonitor" | LHM als Admin starten, Web Server aktivieren |
-| "No serial port found" | USB-Kabel prüfen, `--port COM3` nutzen |
-| Alle Werte 0 | LHM braucht einige Sekunden nach dem Start |
-| COM-Port belegt | Andere Programme (Arduino IDE, etc.) schließen |
-
----
-
-<a id="english"></a>
-
-# PC Hardware Monitor — Windows Setup
-
 Guide for setting up the Windows side of the PC Hardware Monitor.
 
 ## Prerequisites
@@ -194,6 +74,7 @@ The script reads the following values from LibreHardwareMonitor 2× per second a
 | Disks    | Temperature, short name and capacity per drive |
 | Fans     | RPM values of active motherboard fans |
 | Network  | Download/upload throughput in KB/s |
+| Time     | Unix timestamp (UTC) and timezone offset for standby clock |
 
 Full protocol documentation: [docs/PROTOCOL.md](../docs/PROTOCOL.md)
 

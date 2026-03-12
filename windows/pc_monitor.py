@@ -486,8 +486,8 @@ def fake_data():
         "netdl": round(random.uniform(0, 50000), 1),
         "netul": round(random.uniform(0, 10000), 1),
         "ccores": [round(random.uniform(0, 100), 0) for _ in range(16)],
-        "cpuname": "Ryzen 9 5950X",
-        "gpuname": "RTX 2060",
+        "cpuname": "Ryzen 9 9950X",
+        "gpuname": "RTX 5090",
     }
 
 

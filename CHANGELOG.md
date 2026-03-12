@@ -1,92 +1,3 @@
-# Changelog / Änderungsprotokoll
-
-Alle wesentlichen Änderungen an diesem Projekt.
-
----
-
-**[English version below](#english)**
-
----
-
-## [1.1.0] — 2026-03-12
-
-### Hinzugefügt
-
-- **Standby-Uhr**: Minimalistischer Uhrenbildschirm bei Verbindungsverlust (Apple-Style, gedimmte Helligkeit)
-- **Zeitsynchronisation**: PC sendet Unix-Timestamp (`ts`) und Zeitzone (`tzo`), ESP32 zaehlt selbststaendig weiter
-- **Datum**: Deutsche Schreibweise (z.B. "Do, 12. Maerz 2026")
-- **Trennungsdauer**: Anzeige unten rechts (Minuten/Sekunden seit Verbindungsverlust)
-- **Dot-Animation**: Drei Punkte unten links zeigen laufende Suche an
-- **Auto-Reconnect**: Python-Script erkennt USB-Portaenderungen und verbindet automatisch neu
-
-### Verbessert
-
-- **Projektname**: Umbenannt von `pc-monitor` zu `wt32-hw-monitor`
-
-## [1.0.0] — 2026-03-12
-
-### Hinzugefügt
-
-- **Touch-Navigation**: Tippe auf CPU/GPU/RAM/Disk/Netzwerk/Fans für 7 Detail-Ansichten
-- **Zurück-Button** oben links in allen Detail-Ansichten
-- **CPU-Detail**: Auslastung, Temperatur, Takt, Leistung, Spannung, Pro-Kern-Balken, Verlaufsgraph
-- **GPU-Detail**: Auslastung, Temperatur, Core/Memory-Takt, Leistung, Hot Spot, VRAM-Balken, Lüfter-RPM, Graph
-- **RAM-Detail**: Prozent, Used/Free/Total, visueller Block, Verlaufsgraph
-- **Disk-Detail**: Gesamtspeicher-Balken, pro-Laufwerk-Liste mit Name, Kapazität, Temperatur, Größenbalken
-- **Lüfter-Detail**: System-Lüfter 1 & 2, GPU-Lüfter mit RPM-Balken
-- **Netzwerk-Detail**: Download/Upload-Geschwindigkeit, auto-skalierte Verlaufsgraphen
-- **Netzwerk-Anzeige** auf dem Hauptbildschirm (DL/UL in KB/s bis GB/s)
-- **Autostart**: `start_monitor.bat` für Windows Startup-Ordner
-- **Dokumentation**: `docs/PROTOCOL.md`, `docs/SETUP.md`, `docs/TROUBLESHOOTING.md`
-
-### Verbessert
-
-- **Bottom-Bereich** nutzt den gesamten verbleibenden Platz (114 px statt 40 px)
-- **Schriftgröße**: Bottom-Bereich von Font0 auf Font2 umgestellt
-- **Disk-Temperaturen**: 2-Spalten-Layout für bessere Lesbarkeit
-- **Einheiten-Abstände**: Leerzeichen vor MHz, W, MB, nach DL:/UL:
-- **Textkontrast**: Schwarzer Text auf farbigen Balken (statt weiß auf gelb)
-- **Disk-Namen**: Aggressivere Verkürzung (z.B. WD_BLACK SN850X → SN850X)
-- **JSON-Puffer** auf 2048 Bytes erhöht
-
-### Behoben
-
-- Grad-Symbol (°) wird in LovyanGFX-Fonts nicht korrekt dargestellt → Leerzeichen vor "C"
-- Weißer Text auf gelben/farbigen Balken unleserlich → schwarzer Text
-- Verschwendeter Platz am unteren Bildschirmrand
-- Zu kleine Schrift im unteren Bereich
-
-## [0.2.0] — 2026-03-12
-
-### Hinzugefügt
-
-- CPU-Taktfrequenz (MHz) und Package Power (W)
-- GPU VRAM-Anzeige (Used/Total MB)
-- Individuelle Disk-Temperaturen mit Farbkodierung
-- Lüfter-RPM-Anzeige (2 System-Lüfter)
-- Gesamtspeicher-Anzeige (TB)
-
-### Verbessert
-
-- Header entfernt — mehr Platz für Daten
-- Verlaufsgraphen für CPU und GPU (60 Sekunden)
-
-## [0.1.0] — 2026-03-12
-
-### Erster Release
-
-- Grundlegendes Dashboard: CPU (%), GPU (%), RAM (%)
-- Anti-Flicker-Technik (direkte LCD-Zeichnung)
-- Auto-Reconnect bei USB-Verbindungsverlust
-- Farbkodierte Temperaturanzeige (Grün/Gelb/Rot)
-- Python-Script mit LibreHardwareMonitor-Anbindung
-- Automatische COM-Port-Erkennung
-- Test-Modus mit Fake-Daten
-
----
-
-<a id="english"></a>
-
 # Changelog
 
 All notable changes to this project.
@@ -96,10 +7,10 @@ All notable changes to this project.
 ### Added
 
 - **Standby clock**: Minimalist clock screen on connection loss (Apple-style, dimmed brightness)
-- **Time sync**: PC sends Unix timestamp (`ts`) and timezone (`tzo`), ESP32 continues counting independently
+- **Time sync**: PC sends Unix timestamp (`ts`) and timezone offset (`tzo`), ESP32 continues counting independently
 - **Date display**: German format (e.g., "Do, 12. Maerz 2026")
 - **Disconnect timer**: Shown bottom-right (minutes/seconds since connection lost)
-- **Dot animation**: Three dots bottom-left indicate ongoing search
+- **Dot animation**: Three dots bottom-left indicate ongoing connection search
 - **Auto-reconnect**: Python script detects USB port changes and reconnects automatically
 
 ### Improved
