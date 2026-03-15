@@ -173,6 +173,26 @@ void PCMonitorDisplay::drawBackButton() {
     _lcd->drawString("<Back", 10, 8);
 }
 
+void PCMonitorDisplay::drawNextButton() {
+    int x = SCREEN_W - NEXT_BTN_W - 4;
+    _lcd->fillRoundRect(x, 4, NEXT_BTN_W, NEXT_BTN_H, 4, COL_DIVIDER);
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_TEXT, COL_DIVIDER);
+    _lcd->drawRightString("Next>", SCREEN_W - 10, 8);
+}
+
+ScreenState PCMonitorDisplay::nextDetailScreen(ScreenState current) {
+    switch (current) {
+        case SCREEN_CPU_DETAIL:  return SCREEN_GPU_DETAIL;
+        case SCREEN_GPU_DETAIL:  return SCREEN_RAM_DETAIL;
+        case SCREEN_RAM_DETAIL:  return SCREEN_DISK_DETAIL;
+        case SCREEN_DISK_DETAIL: return SCREEN_FAN_DETAIL;
+        case SCREEN_FAN_DETAIL:  return SCREEN_NET_DETAIL;
+        case SCREEN_NET_DETAIL:  return SCREEN_CPU_DETAIL;  // wrap around
+        default:                 return SCREEN_MAIN;
+    }
+}
+
 void PCMonitorDisplay::showStandby() {
     _disconnectMillis = millis();
     _screen = SCREEN_STANDBY;
@@ -354,6 +374,22 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
             _screen = SCREEN_MAIN;
             _first_draw = true;
             _lcd->fillScreen(COL_BG);
+        }
+        // Check next button (top right)
+        else if (tp.x > SCREEN_W - NEXT_BTN_W - 10 && tp.y < NEXT_BTN_H + 10) {
+            _screen = nextDetailScreen(_screen);
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+            // Immediately draw the new detail screen
+            switch (_screen) {
+                case SCREEN_CPU_DETAIL:  drawCpuDetail(data); break;
+                case SCREEN_GPU_DETAIL:  drawGpuDetail(data); break;
+                case SCREEN_RAM_DETAIL:  drawRamDetail(data); break;
+                case SCREEN_DISK_DETAIL: drawDiskDetail(data); break;
+                case SCREEN_FAN_DETAIL:  drawFanDetail(data); break;
+                case SCREEN_NET_DETAIL:  drawNetDetail(data); break;
+                default: break;
+            }
         }
     }
 }
@@ -598,6 +634,7 @@ void PCMonitorDisplay::drawCpuDetail(const HWData &data) {
     if (_first_draw) {
         _lcd->fillScreen(COL_BG);
         drawBackButton();
+        drawNextButton();
 
         _lcd->setFont(&fonts::Font4);
         _lcd->setTextColor(COL_CYAN, COL_BG);
@@ -688,6 +725,7 @@ void PCMonitorDisplay::drawGpuDetail(const HWData &data) {
     if (_first_draw) {
         _lcd->fillScreen(COL_BG);
         drawBackButton();
+        drawNextButton();
 
         _lcd->setFont(&fonts::Font4);
         _lcd->setTextColor(COL_GREEN, COL_BG);
@@ -779,6 +817,7 @@ void PCMonitorDisplay::drawRamDetail(const HWData &data) {
     if (_first_draw) {
         _lcd->fillScreen(COL_BG);
         drawBackButton();
+        drawNextButton();
 
         _lcd->setFont(&fonts::Font4);
         _lcd->setTextColor(COL_YELLOW, COL_BG);
@@ -862,6 +901,7 @@ void PCMonitorDisplay::drawDiskDetail(const HWData &data) {
     if (_first_draw) {
         _lcd->fillScreen(COL_BG);
         drawBackButton();
+        drawNextButton();
 
         _lcd->setFont(&fonts::Font4);
         _lcd->setTextColor(COL_BLUE, COL_BG);
@@ -945,6 +985,7 @@ void PCMonitorDisplay::drawFanDetail(const HWData &data) {
     if (_first_draw) {
         _lcd->fillScreen(COL_BG);
         drawBackButton();
+        drawNextButton();
 
         _lcd->setFont(&fonts::Font4);
         _lcd->setTextColor(COL_TEXT, COL_BG);
@@ -1039,6 +1080,7 @@ void PCMonitorDisplay::drawNetDetail(const HWData &data) {
     if (_first_draw) {
         _lcd->fillScreen(COL_BG);
         drawBackButton();
+        drawNextButton();
 
         _lcd->setFont(&fonts::Font4);
         _lcd->setTextColor(COL_ORANGE, COL_BG);

@@ -82,6 +82,8 @@ private:
     void drawFanDetail(const HWData &data);
     void drawNetDetail(const HWData &data);
     void drawBackButton();
+    void drawNextButton();
+    ScreenState nextDetailScreen(ScreenState current);
     void drawStandbyScreen();
 
     lgfx::LGFX_Device *_lcd;
