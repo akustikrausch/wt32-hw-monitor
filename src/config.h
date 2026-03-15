@@ -57,9 +57,11 @@
 #define BOTTOM_Y      (NET_Y + NET_H + 2)
 #define BOTTOM_H      (SCREEN_H - BOTTOM_Y)  // Use all remaining space
 
-// === Back button (detail screens) ===
+// === Navigation buttons (detail screens) ===
 #define BACK_BTN_W    50
 #define BACK_BTN_H    24
+#define NEXT_BTN_W    50
+#define NEXT_BTN_H    24
 
 // === Touch debounce ===
 #define TOUCH_DEBOUNCE_MS 400
