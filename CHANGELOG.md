@@ -2,6 +2,35 @@
 
 All notable changes to this project.
 
+## [1.3.0] — 2026-03-18
+
+### Fixed
+
+- **Network speed parsing**: Handle LibreHardwareMonitor dynamic unit switching (KB/s ↔ MB/s)
+- **Network adapter detection**: Use total transferred data instead of current throughput for reliable active adapter identification
+
+### Improved
+
+- **Network detail view**: Enhanced display with MB/s support and better adapter detection
+
+## [1.2.0] — 2026-03-15
+
+### Added
+
+- **Next button**: Cycle through all detail views without returning to the main screen
+- **Hidden background launcher** (`start_hidden.pyw`): Windowless autostart — no console window, auto-restart on crash, logging to `pc_monitor.log`
+
+### Fixed
+
+- **Standby clock**: Fixed clock display after ESP32 reboot
+- **Autostart reliability**: Improved startup sequence timing
+
+### Improved
+
+- **README**: SEO optimization with badges, keywords, and better descriptions
+- **Documentation**: English-only, cleaned up for public release
+- **Privacy**: Removed private hardware details from docs, replaced with generic examples
+
 ## [1.1.0] — 2026-03-12
 
 ### Added

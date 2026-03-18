@@ -20,7 +20,7 @@ Most PC hardware monitoring solutions either require a second monitor or rely on
 - **GPU Monitoring**: Load (%), temperature, VRAM, core/mem clock, power, hot spot, fan RPM, history graph
 - **RAM Monitoring**: Usage (%), used/total/free in GB, visual block, history graph
 - **Storage Monitoring**: Total capacity across all drives (TB), per-drive details with size and temperature
-- **Network Monitoring**: Download/upload speed (KB/s to GB/s), auto-scaled history graphs
+- **Network Monitoring**: Download/upload speed (KB/s, MB/s, GB/s), active adapter auto-detection, auto-scaled history graphs
 - **Fan Speed Display**: System fans (motherboard) + GPU fan with RPM bars
 - **Disk Temperature Display**: Color-coded per drive (green/yellow/red)
 - **Touch Navigation**: Tap any area for a detail view, back button top-left — 7 detail screens
@@ -92,7 +92,7 @@ Detailed instructions: [docs/SETUP.md](docs/SETUP.md)
 ├───────────────────────────────────────────────┤
 │  DSK  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 72%  5.8/8.0 TB  │
 ├───────────────────────────────────────────────┤
-│  NET  DL: 125 KB/s             UL: 42 KB/s   │
+│  NET  DL: 12.5 MB/s            UL: 4.2 MB/s  │
 ├───────────────────────────────────────────────┤
 │  FAN1: 1100 RPM  FAN2: 850 RPM              │
 │  990PRO  35°C   T700    38°C                 │
@@ -141,7 +141,8 @@ wt32-hw-monitor/
 │   └── config.h            Pins, colors, layout constants
 ├── windows/
 │   ├── pc_monitor.py       Python: LHM HTTP → serial JSON
-│   ├── start_monitor.bat   Autostart script
+│   ├── start_monitor.bat   Autostart script (console)
+│   ├── start_hidden.pyw    Hidden background launcher (no window)
 │   ├── requirements.txt    Python dependencies
 │   └── README.md           Windows setup guide
 ├── docs/

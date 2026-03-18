@@ -58,8 +58,8 @@ Documentation of the communication protocol between the Python script and ESP32.
 
 | Field   | Type   | Unit | Description                                  |
 |---------|--------|------|----------------------------------------------|
-| netdl   | float  | KB/s | Download throughput (active adapter)         |
-| netul   | float  | KB/s | Upload throughput (active adapter)           |
+| netdl   | float  | KB/s or MB/s | Download throughput (active adapter, unit from LHM) |
+| netul   | float  | KB/s or MB/s | Upload throughput (active adapter, unit from LHM)   |
 | netutil | float  | %    | Network utilization                          |
 | netdup  | float  | GB   | Total data uploaded (session)                |
 | netddl  | float  | GB   | Total data downloaded (session)              |
