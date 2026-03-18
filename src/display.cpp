@@ -72,12 +72,15 @@ PCMonitorDisplay display;
 
 // Helper: format network speed as readable string
 static void formatSpeed(float kbps, char *buf, int maxLen) {
-    if (kbps >= 1000000) {
-        snprintf(buf, maxLen, "%.1fGB/s", kbps / 1000000.0f);
-    } else if (kbps >= 1000) {
-        snprintf(buf, maxLen, "%.1fMB/s", kbps / 1000.0f);
+    float mbps = kbps / 1024.0f;
+    if (mbps >= 1024.0f) {
+        snprintf(buf, maxLen, "%.2f GB/s", mbps / 1024.0f);
+    } else if (mbps >= 1.0f) {
+        snprintf(buf, maxLen, "%.1f MB/s", mbps);
+    } else if (kbps >= 1.0f) {
+        snprintf(buf, maxLen, "%.0f KB/s", kbps);
     } else {
-        snprintf(buf, maxLen, "%.0fKB/s", kbps);
+        snprintf(buf, maxLen, "0 KB/s");
     }
 }
 
@@ -1086,84 +1089,114 @@ void PCMonitorDisplay::drawNetDetail(const HWData &data) {
         _lcd->setTextColor(COL_ORANGE, COL_BG);
         _lcd->drawCenterString("NETWORK", SCREEN_W / 2, 4);
 
+        // Static labels
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_LABEL, COL_BG);
+        _lcd->drawString("Download", 10, 56);
+        _lcd->drawString("Upload", 250, 56);
+
         _first_draw = false;
     }
 
-    int y = 40;
+    int y = 34;
 
-    // Download speed - large
+    // Adapter name (below title)
     _lcd->setFont(&fonts::Font2);
-    _lcd->setTextColor(COL_LABEL, COL_BG);
-    _lcd->drawString("Download:", 10, y);
-    y += 20;
+    _lcd->setTextColor(COL_DIVIDER, COL_BG);
+    snprintf(buf, sizeof(buf), "%-31s", data.net_adapter);
+    _lcd->drawCenterString(buf, SCREEN_W / 2, y);
 
+    y = 72;
+
+    // === Download speed (left) + Upload speed (right) ===
     _lcd->setFont(&fonts::Font4);
     formatSpeed(data.net_download, speedBuf, sizeof(speedBuf));
-    snprintf(buf, sizeof(buf), " %s      ", speedBuf);
+    snprintf(buf, sizeof(buf), "%-14s", speedBuf);
     _lcd->setTextColor(COL_GREEN, COL_BG);
     _lcd->drawString(buf, 10, y);
 
-    // Download bar (normalized to max seen)
-    float maxDl = 1.0f;
+    formatSpeed(data.net_upload, speedBuf, sizeof(speedBuf));
+    snprintf(buf, sizeof(buf), "%-14s", speedBuf);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 250, y);
+
+    y += 30;
+
+    // === Download bar + Upload bar ===
+    float maxDl = 1.0f, maxUl = 1.0f;
     for (int i = 0; i < HISTORY_LEN; i++) {
         if (_net_dl_history[i] > maxDl) maxDl = _net_dl_history[i];
-    }
-    float dlPct = (data.net_download / maxDl) * 100.0f;
-    if (dlPct > 100) dlPct = 100;
-    drawBar(250, y + 4, 220, 18, dlPct, COL_GREEN);
-
-    y += 40;
-
-    // Upload speed - large
-    _lcd->setFont(&fonts::Font2);
-    _lcd->setTextColor(COL_LABEL, COL_BG);
-    _lcd->drawString("Upload:", 10, y);
-    y += 20;
-
-    _lcd->setFont(&fonts::Font4);
-    formatSpeed(data.net_upload, speedBuf, sizeof(speedBuf));
-    snprintf(buf, sizeof(buf), " %s      ", speedBuf);
-    _lcd->setTextColor(COL_CYAN, COL_BG);
-    _lcd->drawString(buf, 10, y);
-
-    // Upload bar
-    float maxUl = 1.0f;
-    for (int i = 0; i < HISTORY_LEN; i++) {
         if (_net_ul_history[i] > maxUl) maxUl = _net_ul_history[i];
     }
-    float ulPct = (data.net_upload / maxUl) * 100.0f;
+    float dlPct = (maxDl > 0) ? (data.net_download / maxDl) * 100.0f : 0;
+    float ulPct = (maxUl > 0) ? (data.net_upload / maxUl) * 100.0f : 0;
+    if (dlPct > 100) dlPct = 100;
     if (ulPct > 100) ulPct = 100;
-    drawBar(250, y + 4, 220, 18, ulPct, COL_CYAN);
+    drawBar(10, y, 220, 14, dlPct, COL_GREEN);
+    drawBar(250, y, 220, 14, ulPct, COL_CYAN);
 
-    y += 45;
+    y += 22;
 
-    // Download graph (auto-scaled)
+    // === Utilization + Total Data row ===
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Utilization:", 10, y);
+    snprintf(buf, sizeof(buf), "%.1f%%   ", data.net_util);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 110, y);
+
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Total:", 250, y);
+    snprintf(buf, sizeof(buf), "%.1f GB / %.1f GB   ", data.net_data_dl, data.net_data_up);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 300, y);
+
+    y += 24;
+
+    // === Download graph ===
     _lcd->setFont(&fonts::Font0);
     _lcd->setTextColor(COL_LABEL, COL_BG);
     formatSpeed(maxDl, speedBuf, sizeof(speedBuf));
-    snprintf(buf, sizeof(buf), "Download History (max: %s)  ", speedBuf);
+    snprintf(buf, sizeof(buf), "Download (peak: %s)   ", speedBuf);
     _lcd->drawString(buf, 10, y);
-    y += 12;
+    y += 10;
 
-    // Normalize download history to 0-100 for graph
     float normDl[60];
     for (int i = 0; i < HISTORY_LEN; i++) {
         normDl[i] = (maxDl > 0) ? (_net_dl_history[i] / maxDl) * 100.0f : 0;
     }
-    drawGraph(10, y, SCREEN_W - 20, 60, normDl, HISTORY_LEN, COL_GREEN);
+    drawGraph(10, y, SCREEN_W / 2 - 15, 55, normDl, HISTORY_LEN, COL_GREEN);
 
-    y += 68;
-
-    // Upload graph
-    formatSpeed(maxUl, speedBuf, sizeof(speedBuf));
-    snprintf(buf, sizeof(buf), "Upload History (max: %s)  ", speedBuf);
+    // === Upload graph (right side, same row) ===
+    _lcd->setFont(&fonts::Font0);
     _lcd->setTextColor(COL_LABEL, COL_BG);
-    _lcd->drawString(buf, 10, y);
-    y += 12;
+    formatSpeed(maxUl, speedBuf, sizeof(speedBuf));
+    snprintf(buf, sizeof(buf), "Upload (peak: %s)   ", speedBuf);
+    _lcd->drawString(buf, SCREEN_W / 2 + 5, y - 10);
 
     float normUl[60];
     for (int i = 0; i < HISTORY_LEN; i++) {
         normUl[i] = (maxUl > 0) ? (_net_ul_history[i] / maxUl) * 100.0f : 0;
     }
-    drawGraph(10, y, SCREEN_W - 20, 60, normUl, HISTORY_LEN, COL_CYAN);
+    drawGraph(SCREEN_W / 2 + 5, y, SCREEN_W / 2 - 15, 55, normUl, HISTORY_LEN, COL_CYAN);
+
+    y += 63;
+
+    // === Combined DL+UL graph (full width, bottom) ===
+    _lcd->setFont(&fonts::Font0);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    float maxCombined = maxDl > maxUl ? maxDl : maxUl;
+    formatSpeed(maxCombined, speedBuf, sizeof(speedBuf));
+    snprintf(buf, sizeof(buf), "Combined Traffic (scale: %s)   ", speedBuf);
+    _lcd->drawString(buf, 10, y);
+    y += 10;
+
+    // Overlay both on same graph
+    float normDlC[60], normUlC[60];
+    for (int i = 0; i < HISTORY_LEN; i++) {
+        normDlC[i] = (maxCombined > 0) ? (_net_dl_history[i] / maxCombined) * 100.0f : 0;
+        normUlC[i] = (maxCombined > 0) ? (_net_ul_history[i] / maxCombined) * 100.0f : 0;
+    }
+    drawGraph(10, y, SCREEN_W - 20, 55, normDlC, HISTORY_LEN, COL_GREEN);
+    drawGraph(10, y, SCREEN_W - 20, 55, normUlC, HISTORY_LEN, COL_CYAN);
 }

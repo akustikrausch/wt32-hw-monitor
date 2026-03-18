@@ -325,27 +325,42 @@ def collect_hw_data(root):
         disk_names.append(short)
         disk_sizes.append(int(total_gb))
 
-    # Network — find network adapter with throughput data
+    # Network — find active adapter (highest throughput)
     net_dl = 0.0  # KB/s
     net_ul = 0.0  # KB/s
-    net_nodes = find_hw_node(root, "network.png")
+    net_util = 0.0  # Network utilization %
+    net_data_up = 0.0  # Total data uploaded GB
+    net_data_dl = 0.0  # Total data downloaded GB
+    net_adapter = "No Network"
+    net_nodes = find_hw_node(root, "nic.png")
     if not net_nodes:
-        net_nodes = find_hw_node(root, "nic.png")
+        net_nodes = find_hw_node(root, "network.png")
+    best_throughput = 0.0
     for net in net_nodes:
         throughput = find_sensor_group(net, "Throughput")
-        if throughput is None:
-            throughput = find_sensor_group(net, "Data")
         if throughput:
-            dl = get_sensor_value(throughput, "download")
-            if dl is None:
-                dl = get_sensor_value(throughput, "received")
-            ul = get_sensor_value(throughput, "upload")
-            if ul is None:
-                ul = get_sensor_value(throughput, "sent")
-            if dl is not None:
-                net_dl += dl
-            if ul is not None:
-                net_ul += ul
+            dl = get_sensor_value(throughput, "download") or 0
+            ul = get_sensor_value(throughput, "upload") or 0
+            total = dl + ul
+            if total > best_throughput:
+                best_throughput = total
+                net_dl = dl
+                net_ul = ul
+                net_adapter = net.get("Text", "Unknown")
+                # Get utilization
+                load_group = find_sensor_group(net, "Load")
+                val = get_sensor_value(load_group, "utilization")
+                if val is not None:
+                    net_util = val
+                # Get total data transferred
+                data_group = find_sensor_group(net, "Data")
+                if data_group:
+                    val = get_sensor_value(data_group, "uploaded")
+                    if val is not None:
+                        net_data_up = val
+                    val = get_sensor_value(data_group, "downloaded")
+                    if val is not None:
+                        net_data_dl = val
 
     # GPU extra: core clock, memory clock, power, hot spot temp
     gpu_core_clk = 0.0
@@ -444,6 +459,10 @@ def collect_hw_data(root):
         "dsize": disk_sizes,
         "netdl": round(net_dl, 1),
         "netul": round(net_ul, 1),
+        "netutil": round(net_util, 1),
+        "netdup": round(net_data_up, 1),
+        "netddl": round(net_data_dl, 1),
+        "netname": net_adapter,
         "ccores": cpu_cores,
         "cpuname": cpu_name,
         "gpuname": gpu_name,
@@ -485,6 +504,10 @@ def fake_data():
         "dsize": [1000, 500, 10000, 8000],
         "netdl": round(random.uniform(0, 50000), 1),
         "netul": round(random.uniform(0, 10000), 1),
+        "netutil": round(random.uniform(0, 15), 1),
+        "netdup": round(random.uniform(5, 200), 1),
+        "netddl": round(random.uniform(10, 500), 1),
+        "netname": "Ethernet 6",
         "ccores": [round(random.uniform(0, 100), 0) for _ in range(16)],
         "cpuname": "Ryzen 9 9950X",
         "gpuname": "RTX 5090",
