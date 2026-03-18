@@ -40,6 +40,10 @@ struct HWData {
     int   disk_count;     // How many disks
     float net_download;   // Network download KB/s
     float net_upload;     // Network upload KB/s
+    float net_util;       // Network utilization %
+    float net_data_up;    // Total data uploaded GB (session)
+    float net_data_dl;    // Total data downloaded GB (session)
+    char  net_adapter[32]; // Active network adapter name
 
     // Detail data
     float gpu_core_clock; // GPU core clock MHz

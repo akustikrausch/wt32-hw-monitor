@@ -14,7 +14,7 @@ Documentation of the communication protocol between the Python script and ESP32.
 ## JSON Example
 
 ```json
-{"cpu":38.5,"gpuload":42.0,"cputemp":62.0,"gputemp":48.0,"cpuclk":5800,"cpupwr":170,"cpuvolt":1.280,"gpuvram":16384,"gpuvtot":32768,"gpuclk":2850,"gpumclk":12000,"gpupwr":380,"gpuhs":55,"gpufan":1450,"ram":58.0,"ramused":74.2,"ramtotal":128.0,"fan1":1100,"fan2":850,"stotal":8.0,"sused":5.8,"sfree":2.2,"dtemp":[35,38,32,36],"dname":["990PRO","T700","T500","SN850X"],"dsize":[2000,2000,2000,2000],"netdl":125.8,"netul":42.3,"ccores":[38,42,55,28,62,35,48,22,58,30,45,52,40,33,50,27],"cpuname":"Ryzen 9 9950X","gpuname":"RTX 5090","ts":1741784400,"tzo":3600}
+{"cpu":38.5,"gpuload":42.0,"cputemp":62.0,"gputemp":48.0,"cpuclk":5800,"cpupwr":170,"cpuvolt":1.280,"gpuvram":16384,"gpuvtot":32768,"gpuclk":2850,"gpumclk":12000,"gpupwr":380,"gpuhs":55,"gpufan":1450,"ram":58.0,"ramused":74.2,"ramtotal":128.0,"fan1":1100,"fan2":850,"stotal":8.0,"sused":5.8,"sfree":2.2,"dtemp":[35,38,32,36],"dname":["990PRO","T700","T500","SN850X"],"dsize":[2000,2000,2000,2000],"netdl":125.8,"netul":42.3,"netutil":0.5,"netdup":19.7,"netddl":11.2,"netname":"Ethernet 6","ccores":[38,42,55,28,62,35,48,22,58,30,45,52,40,33,50,27],"cpuname":"Ryzen 9 9950X","gpuname":"RTX 5090","ts":1741784400,"tzo":3600}
 ```
 
 ## Fields
@@ -56,10 +56,14 @@ Documentation of the communication protocol between the Python script and ESP32.
 
 ### Network
 
-| Field | Type  | Unit | Description         |
-|-------|-------|------|---------------------|
-| netdl | float | KB/s | Download throughput |
-| netul | float | KB/s | Upload throughput   |
+| Field   | Type   | Unit | Description                                  |
+|---------|--------|------|----------------------------------------------|
+| netdl   | float  | KB/s | Download throughput (active adapter)         |
+| netul   | float  | KB/s | Upload throughput (active adapter)           |
+| netutil | float  | %    | Network utilization                          |
+| netdup  | float  | GB   | Total data uploaded (session)                |
+| netddl  | float  | GB   | Total data downloaded (session)              |
+| netname | string | —    | Active network adapter name (e.g. Ethernet 6)|
 
 ### CPU Cores
 
@@ -106,4 +110,4 @@ Rules: Remove manufacturer prefixes, strip suffixes like "NVMe"/"SATA", truncate
 | ram.png      | RAM               | Load, Data                                     |
 | hdd.png      | Drives            | Temperatures, Data                             |
 | chip.png     | Motherboard Chips | Fans                                           |
-| network.png  | Network Adapters  | Throughput                                     |
+| nic.png      | Network Adapters  | Throughput, Load, Data                         |

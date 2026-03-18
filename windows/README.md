@@ -73,7 +73,7 @@ The script reads the following values from LibreHardwareMonitor 2× per second a
 | Storage  | Total capacity across all drives (total/used/free in TB) |
 | Disks    | Temperature, short name and capacity per drive |
 | Fans     | RPM values of active motherboard fans |
-| Network  | Download/upload throughput in KB/s |
+| Network  | Active adapter name, download/upload speed (KB/s), utilization %, total data transferred (GB) |
 | Time     | Unix timestamp (UTC) and timezone offset for standby clock |
 
 Full protocol documentation: [docs/PROTOCOL.md](../docs/PROTOCOL.md)

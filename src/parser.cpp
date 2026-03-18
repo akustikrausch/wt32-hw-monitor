@@ -63,6 +63,12 @@ bool parseHWData(const char *json, HWData &data) {
     // Network
     data.net_download = doc["netdl"] | 0.0f;
     data.net_upload = doc["netul"] | 0.0f;
+    data.net_util = doc["netutil"] | 0.0f;
+    data.net_data_up = doc["netdup"] | 0.0f;
+    data.net_data_dl = doc["netddl"] | 0.0f;
+    const char *netName = doc["netname"] | "Unknown";
+    strncpy(data.net_adapter, netName, sizeof(data.net_adapter) - 1);
+    data.net_adapter[sizeof(data.net_adapter) - 1] = '\0';
 
     // GPU detail
     data.gpu_core_clock = doc["gpuclk"] | 0.0f;
