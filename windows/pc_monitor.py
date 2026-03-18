@@ -54,6 +54,30 @@ def parse_value(val_str):
         return 0.0
 
 
+def parse_speed_kbps(val_str):
+    """Parse LHM speed string to KB/s. Handles dynamic units like '5,8 MB/s' or '69,6 KB/s'."""
+    if not val_str:
+        return 0.0
+    val_str = val_str.strip().replace(",", ".")
+    parts = val_str.split()
+    if len(parts) < 2:
+        return parse_value(val_str)
+    try:
+        num = float(parts[0])
+    except ValueError:
+        return 0.0
+    unit = parts[1].upper()
+    if "GB/S" in unit:
+        return num * 1024.0 * 1024.0  # GB/s -> KB/s
+    elif "MB/S" in unit:
+        return num * 1024.0  # MB/s -> KB/s
+    elif "KB/S" in unit:
+        return num
+    elif "B/S" in unit:
+        return num / 1024.0  # B/s -> KB/s
+    return num  # fallback: assume KB/s
+
+
 def find_hw_node(node, image_key):
     """Find a hardware node by its ImageURL containing the key (e.g. 'cpu', 'nvidia')."""
     results = []
@@ -81,6 +105,17 @@ def get_sensor_value(group_node, name_contains):
         text = child.get("Text", "").lower()
         if name_contains.lower() in text:
             return parse_value(child.get("Value", ""))
+    return None
+
+
+def get_sensor_raw(group_node, name_contains):
+    """Get raw value string from a sensor by partial name match."""
+    if group_node is None:
+        return None
+    for child in group_node.get("Children", []):
+        text = child.get("Text", "").lower()
+        if name_contains.lower() in text:
+            return child.get("Value", "")
     return None
 
 
@@ -355,15 +390,15 @@ def collect_hw_data(root):
             net_data_up = _up
             net_data_dl = _dl
             net_adapter = net.get("Text", "Unknown")
-            # Get throughput
+            # Get throughput (use raw string + parse_speed_kbps for unit awareness)
             throughput = find_sensor_group(net, "Throughput")
             if throughput:
-                val = get_sensor_value(throughput, "download")
-                if val is not None:
-                    net_dl = val
-                val = get_sensor_value(throughput, "upload")
-                if val is not None:
-                    net_ul = val
+                raw = get_sensor_raw(throughput, "download")
+                if raw is not None:
+                    net_dl = parse_speed_kbps(raw)
+                raw = get_sensor_raw(throughput, "upload")
+                if raw is not None:
+                    net_ul = parse_speed_kbps(raw)
             # Get utilization
             load_group = find_sensor_group(net, "Load")
             val = get_sensor_value(load_group, "utilization")
