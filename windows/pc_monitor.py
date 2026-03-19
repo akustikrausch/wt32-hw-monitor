@@ -467,6 +467,257 @@ def collect_hw_data(root):
                 cpu_voltage = val
         break
 
+    # === ADVANCED DATA ===
+
+    # Motherboard voltages + temps
+    mb_vcore = 0.0
+    mb_33v = 0.0
+    mb_cmos = 0.0
+    mb_temps = []       # Board temperatures (up to 6)
+    mb_tnames = []      # Short names for board temps
+    mb_fan_ctrl = []    # Fan control percentages
+
+    for chip in mb_nodes:
+        volt_group = find_sensor_group(chip, "Voltages")
+        if volt_group:
+            val = get_sensor_value(volt_group, "vcore")
+            if val is not None:
+                mb_vcore = val
+            val = get_sensor_value(volt_group, "+3.3v")
+            if val is None:
+                val = get_sensor_value(volt_group, "3.3v")
+            if val is not None:
+                mb_33v = val
+            val = get_sensor_value(volt_group, "cmos")
+            if val is None:
+                val = get_sensor_value(volt_group, "battery")
+            if val is not None:
+                mb_cmos = val
+
+        temp_group = find_sensor_group(chip, "Temperatures")
+        if temp_group:
+            for child in temp_group.get("Children", []):
+                name = child.get("Text", "")
+                val = parse_value(child.get("Value", ""))
+                if val > 0 and len(mb_temps) < 6:
+                    # Shorten temp name
+                    short_name = name.replace("Temperature ", "T")
+                    short_name = short_name.replace("temperature ", "T")
+                    if len(short_name) > 8:
+                        short_name = short_name[:8]
+                    mb_temps.append(round(val, 0))
+                    mb_tnames.append(short_name)
+
+        ctrl_group = find_sensor_group(chip, "Controls")
+        if ctrl_group:
+            for child in ctrl_group.get("Children", []):
+                val = parse_value(child.get("Value", ""))
+                if len(mb_fan_ctrl) < 4:
+                    mb_fan_ctrl.append(round(val, 0))
+        break
+
+    # CPU advanced: SoC temp, CCD temps, TDC current, Fabric/Bus/Mem clocks
+    cpu_soc_temp = 0.0
+    cpu_ccd1_temp = 0.0
+    cpu_ccd2_temp = 0.0
+    cpu_tdc = 0.0
+    cpu_fabric_clk = 0.0
+    cpu_bus_speed = 0.0
+    cpu_mem_clk = 0.0
+
+    for cpu in cpu_nodes:
+        temp_group = find_sensor_group(cpu, "Temperatures")
+        if temp_group:
+            val = get_sensor_value(temp_group, "soc")
+            if val is not None:
+                cpu_soc_temp = val
+            val = get_sensor_value(temp_group, "ccd1")
+            if val is None:
+                val = get_sensor_value(temp_group, "ccd 1")
+            if val is not None:
+                cpu_ccd1_temp = val
+            val = get_sensor_value(temp_group, "ccd2")
+            if val is None:
+                val = get_sensor_value(temp_group, "ccd 2")
+            if val is not None:
+                cpu_ccd2_temp = val
+
+        curr_group = find_sensor_group(cpu, "Currents")
+        if curr_group:
+            val = get_sensor_value(curr_group, "tdc")
+            if val is None:
+                val = get_sensor_value(curr_group, "core")
+            if val is not None:
+                cpu_tdc = val
+
+        clk_group = find_sensor_group(cpu, "Clocks")
+        if clk_group:
+            val = get_sensor_value(clk_group, "fabric")
+            if val is None:
+                val = get_sensor_value(clk_group, "uncore")
+            if val is not None:
+                cpu_fabric_clk = val
+            val = get_sensor_value(clk_group, "bus")
+            if val is not None:
+                cpu_bus_speed = val
+            val = get_sensor_value(clk_group, "memory")
+            if val is not None:
+                cpu_mem_clk = val
+        break
+
+    # GPU advanced: voltage, D3D loads, PCIe bandwidth, board power, memory controller load
+    gpu_voltage = 0.0
+    gpu_mem_ctrl_load = 0.0
+    gpu_vid_eng_load = 0.0
+    gpu_bus_load = 0.0
+    gpu_board_pwr = 0.0
+    gpu_fan_ctrl = 0.0
+    gpu_pcie_rx = 0.0
+    gpu_pcie_tx = 0.0
+    gpu_d3d_3d = 0.0
+    gpu_d3d_copy = 0.0
+    gpu_d3d_vdec = 0.0
+    gpu_d3d_venc = 0.0
+    gpu_dmem = 0.0
+    gpu_smem = 0.0
+
+    for gpu in gpu_nodes:
+        volt_group = find_sensor_group(gpu, "Voltages")
+        if volt_group:
+            val = get_sensor_value(volt_group, "gpu core")
+            if val is not None:
+                gpu_voltage = val
+
+        load_group = find_sensor_group(gpu, "Load")
+        if load_group:
+            val = get_sensor_value(load_group, "memory controller")
+            if val is not None:
+                gpu_mem_ctrl_load = val
+            val = get_sensor_value(load_group, "video engine")
+            if val is not None:
+                gpu_vid_eng_load = val
+            val = get_sensor_value(load_group, "bus")
+            if val is not None:
+                gpu_bus_load = val
+            val = get_sensor_value(load_group, "d3d 3d")
+            if val is not None:
+                gpu_d3d_3d = val
+            val = get_sensor_value(load_group, "d3d copy")
+            if val is not None:
+                gpu_d3d_copy = val
+            val = get_sensor_value(load_group, "d3d video decode")
+            if val is not None:
+                gpu_d3d_vdec = val
+            val = get_sensor_value(load_group, "d3d video encode")
+            if val is not None:
+                gpu_d3d_venc = val
+
+        pwr_group = find_sensor_group(gpu, "Powers")
+        if pwr_group:
+            val = get_sensor_value(pwr_group, "board")
+            if val is None:
+                val = get_sensor_value(pwr_group, "total")
+            if val is not None:
+                gpu_board_pwr = val
+
+        ctrl_group = find_sensor_group(gpu, "Controls")
+        if ctrl_group:
+            val = get_sensor_value(ctrl_group, "fan")
+            if val is not None:
+                gpu_fan_ctrl = val
+
+        throughput_group = find_sensor_group(gpu, "Throughput")
+        if throughput_group:
+            raw = get_sensor_raw(throughput_group, "pcie rx")
+            if raw is None:
+                raw = get_sensor_raw(throughput_group, "rx")
+            if raw is not None:
+                gpu_pcie_rx = parse_speed_kbps(raw)
+            raw = get_sensor_raw(throughput_group, "pcie tx")
+            if raw is None:
+                raw = get_sensor_raw(throughput_group, "tx")
+            if raw is not None:
+                gpu_pcie_tx = parse_speed_kbps(raw)
+
+        data_group = find_sensor_group(gpu, "Data")
+        if data_group:
+            val = get_sensor_value(data_group, "d3d dedicated")
+            if val is not None:
+                gpu_dmem = val
+            val = get_sensor_value(data_group, "d3d shared")
+            if val is not None:
+                gpu_smem = val
+        break
+
+    # RAM advanced: per-DIMM temperatures, virtual memory
+    dimm_temps = []
+    vm_used = 0.0
+    vm_total = 0.0
+
+    for ram in ram_nodes:
+        text = ram.get("Text", "").lower()
+        if "virtual" in text:
+            data_group = find_sensor_group(ram, "Data")
+            if data_group:
+                val = get_sensor_value(data_group, "memory used")
+                if val is not None:
+                    vm_used = val
+                val = get_sensor_value(data_group, "memory available")
+                if val is not None:
+                    vm_total = vm_used + val
+
+    # DIMM temps from RAM nodes or motherboard chip
+    for ram in ram_nodes:
+        temp_group = find_sensor_group(ram, "Temperatures")
+        if temp_group:
+            for child in temp_group.get("Children", []):
+                val = parse_value(child.get("Value", ""))
+                if val > 0 and len(dimm_temps) < 4:
+                    dimm_temps.append(round(val, 0))
+
+    # If no DIMM temps from RAM nodes, try motherboard chip
+    if not dimm_temps:
+        for chip in mb_nodes:
+            temp_group = find_sensor_group(chip, "Temperatures")
+            if temp_group:
+                for child in temp_group.get("Children", []):
+                    name = child.get("Text", "").lower()
+                    if "dimm" in name or "memory" in name:
+                        val = parse_value(child.get("Value", ""))
+                        if val > 0 and len(dimm_temps) < 4:
+                            dimm_temps.append(round(val, 0))
+            break
+
+    # Disk advanced: per-disk read/write throughput, activity
+    disk_read = []   # KB/s per disk
+    disk_write = []  # KB/s per disk
+    disk_act = []    # Activity % per disk
+
+    for hdd in hdd_nodes:
+        throughput = find_sensor_group(hdd, "Throughput")
+        r_speed = 0.0
+        w_speed = 0.0
+        if throughput:
+            raw = get_sensor_raw(throughput, "read")
+            if raw is not None:
+                r_speed = parse_speed_kbps(raw)
+            raw = get_sensor_raw(throughput, "write")
+            if raw is not None:
+                w_speed = parse_speed_kbps(raw)
+        disk_read.append(round(r_speed, 1))
+        disk_write.append(round(w_speed, 1))
+
+        load_group = find_sensor_group(hdd, "Load")
+        act = 0.0
+        if load_group:
+            # Try "Total Activity" first, then "Used Space" won't work for activity
+            val = get_sensor_value(load_group, "total activity")
+            if val is None:
+                val = get_sensor_value(load_group, "activity")
+            if val is not None:
+                act = val
+        disk_act.append(round(act, 1))
+
     # Timestamp: UTC Unix epoch + local timezone offset
     import datetime
     now_local = datetime.datetime.now(datetime.timezone.utc).astimezone()
@@ -509,6 +760,44 @@ def collect_hw_data(root):
         "ccores": cpu_cores,
         "cpuname": cpu_name,
         "gpuname": gpu_name,
+        # Advanced: Motherboard
+        "mbvc": round(mb_vcore, 3),
+        "mb33": round(mb_33v, 2),
+        "mbcm": round(mb_cmos, 2),
+        "mbtp": mb_temps,
+        "mbtn": mb_tnames,
+        "mbfc": mb_fan_ctrl,
+        # Advanced: CPU
+        "csoc": round(cpu_soc_temp, 0),
+        "ccd1": round(cpu_ccd1_temp, 0),
+        "ccd2": round(cpu_ccd2_temp, 0),
+        "ctdc": round(cpu_tdc, 1),
+        "cfab": round(cpu_fabric_clk, 0),
+        "cbus": round(cpu_bus_speed, 1),
+        "cmcl": round(cpu_mem_clk, 0),
+        # Advanced: GPU
+        "gvlt": round(gpu_voltage, 3),
+        "gmcl": round(gpu_mem_ctrl_load, 0),
+        "gvel": round(gpu_vid_eng_load, 0),
+        "gbl": round(gpu_bus_load, 0),
+        "gbpw": round(gpu_board_pwr, 0),
+        "gfct": round(gpu_fan_ctrl, 0),
+        "gprx": round(gpu_pcie_rx, 0),
+        "gptx": round(gpu_pcie_tx, 0),
+        "gd3d": round(gpu_d3d_3d, 0),
+        "gdcp": round(gpu_d3d_copy, 0),
+        "gdvd": round(gpu_d3d_vdec, 0),
+        "gdve": round(gpu_d3d_venc, 0),
+        "gdm": round(gpu_dmem, 0),
+        "gsm": round(gpu_smem, 0),
+        # Advanced: RAM
+        "dimt": dimm_temps,
+        "vmu": round(vm_used, 1),
+        "vmt": round(vm_total, 1),
+        # Advanced: Disk I/O
+        "drd": disk_read,
+        "dwr": disk_write,
+        "dact": disk_act,
     }
 
 
@@ -554,6 +843,44 @@ def fake_data():
         "ccores": [round(random.uniform(0, 100), 0) for _ in range(16)],
         "cpuname": "Ryzen 9 9950X",
         "gpuname": "RTX 5090",
+        # Advanced: Motherboard
+        "mbvc": round(random.uniform(0.9, 1.45), 3),
+        "mb33": round(random.uniform(3.2, 3.4), 2),
+        "mbcm": round(random.uniform(2.9, 3.1), 2),
+        "mbtp": [random.randint(30, 60) for _ in range(4)],
+        "mbtn": ["T1 VRM", "T2 Chip", "T3 PCH", "T4 SB"],
+        "mbfc": [random.randint(30, 100) for _ in range(3)],
+        # Advanced: CPU
+        "csoc": random.randint(35, 55),
+        "ccd1": random.randint(50, 75),
+        "ccd2": random.randint(50, 75),
+        "ctdc": round(random.uniform(10, 120), 1),
+        "cfab": random.randint(1600, 2000),
+        "cbus": round(random.uniform(99.5, 100.5), 1),
+        "cmcl": random.randint(1600, 2000),
+        # Advanced: GPU
+        "gvlt": round(random.uniform(0.7, 1.1), 3),
+        "gmcl": random.randint(0, 80),
+        "gvel": random.randint(0, 50),
+        "gbl": random.randint(0, 30),
+        "gbpw": round(random.uniform(50, 200), 0),
+        "gfct": random.randint(20, 100),
+        "gprx": round(random.uniform(0, 500000), 0),
+        "gptx": round(random.uniform(0, 100000), 0),
+        "gd3d": random.randint(0, 95),
+        "gdcp": random.randint(0, 20),
+        "gdvd": random.randint(0, 30),
+        "gdve": random.randint(0, 10),
+        "gdm": round(random.uniform(500, 5000), 0),
+        "gsm": round(random.uniform(0, 200), 0),
+        # Advanced: RAM
+        "dimt": [random.randint(40, 55) for _ in range(4)],
+        "vmu": round(random.uniform(10, 40), 1),
+        "vmt": round(random.uniform(60, 80), 1),
+        # Advanced: Disk I/O
+        "drd": [round(random.uniform(0, 500000), 0) for _ in range(4)],
+        "dwr": [round(random.uniform(0, 200000), 0) for _ in range(4)],
+        "dact": [random.randint(0, 100) for _ in range(4)],
     }
 
 

@@ -75,6 +75,11 @@ The script reads the following values from LibreHardwareMonitor 2× per second a
 | Fans     | RPM values of active motherboard fans |
 | Network  | Active adapter (auto-detected by total data), download/upload speed (KB/s or MB/s), utilization %, total data transferred (GB) |
 | Time     | Unix timestamp (UTC) and timezone offset for standby clock |
+| Advanced: Mobo | Vcore, +3.3V, CMOS battery voltage, board temperatures, fan control % |
+| Advanced: CPU  | CCD1/CCD2 die temps, SoC temp, TDC current, Fabric/Bus/Memory clocks |
+| Advanced: GPU  | Core voltage, D3D engine loads (3D/Copy/VDec/VEnc), PCIe Rx/Tx, memory controller/video engine/bus loads, board power, fan control %, D3D memory |
+| Advanced: RAM  | Per-DIMM temperatures, virtual memory used/total |
+| Advanced: Disk | Per-disk read/write throughput, per-disk activity % |
 
 Full protocol documentation: [docs/PROTOCOL.md](../docs/PROTOCOL.md)
 

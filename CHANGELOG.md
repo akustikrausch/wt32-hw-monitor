@@ -2,6 +2,26 @@
 
 All notable changes to this project.
 
+## [1.4.0] — 2026-03-19
+
+### Added
+
+- **Advanced View**: New "..." button on main screen opens advanced monitoring dashboard
+- **Advanced Main Screen**: Overview with motherboard voltages, CPU die temps/TDC/clocks, DIMM temps, disk I/O throughput, GPU D3D loads/PCIe stats
+- **5 Advanced Detail Screens**: Motherboard, CPU Advanced, GPU Advanced, RAM Advanced, Disk I/O — each with Back/Next navigation
+- **Section header bars**: Color-coded section dividers on advanced main screen for better readability
+
+### Fixed
+
+- **Disk I/O activity display**: Changed `disk_act` from int to float to preserve sub-1% activity values (NVMe idle activity is often 0.1–0.3%)
+- **JSON buffer mismatch**: `jsonBuf` in main.cpp increased from 2048 to 4096 bytes to match parser's `lineBuf`
+- **Purple readability**: Changed COL_PURPLE from 0x780F to 0xC01F (brighter), added COL_VIOLET for headers, redesigned advanced screen with gray section bars
+
+### Improved
+
+- **Serial buffer**: Parser `lineBuf` increased to 4096 bytes for ~30 new advanced data fields
+- **Disk I/O precision**: Activity shown with 1 decimal place (e.g., "0.3%" instead of "0%"), read/write throughput with 0.1 KB/s resolution
+
 ## [1.3.0] — 2026-03-18
 
 ### Fixed

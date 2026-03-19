@@ -6,7 +6,7 @@
 static HWData hwData;
 static unsigned long lastDataTime = 0;
 static const unsigned long TIMEOUT_MS = 5000;  // 5 sec without data = disconnected
-static char jsonBuf[2048];
+static char jsonBuf[4096];
 
 void setup() {
     Serial.begin(SERIAL_BAUD);

@@ -12,6 +12,13 @@ enum ScreenState {
     SCREEN_DISK_DETAIL,
     SCREEN_FAN_DETAIL,
     SCREEN_NET_DETAIL,
+    // Advanced screens
+    SCREEN_ADV_MAIN,
+    SCREEN_ADV_MOBO,
+    SCREEN_ADV_CPU,
+    SCREEN_ADV_GPU,
+    SCREEN_ADV_RAM,
+    SCREEN_ADV_DISK,
     SCREEN_STANDBY,
 };
 
@@ -44,6 +51,52 @@ struct HWData {
     float net_data_up;    // Total data uploaded GB (session)
     float net_data_dl;    // Total data downloaded GB (session)
     char  net_adapter[32]; // Active network adapter name
+
+    // Advanced: Motherboard
+    float mb_vcore;       // Vcore voltage
+    float mb_33v;         // +3.3V rail
+    float mb_cmos;        // CMOS battery voltage
+    int   mb_temps[6];    // Board temperatures
+    char  mb_tnames[6][9];// Board temp sensor names
+    int   mb_temp_count;  // Number of board temps
+    int   mb_fan_ctrl[4]; // Fan control percentages
+    int   mb_fan_ctrl_count;
+
+    // Advanced: CPU
+    float cpu_soc_temp;   // SoC temperature
+    float cpu_ccd1_temp;  // CCD1 die temperature
+    float cpu_ccd2_temp;  // CCD2 die temperature
+    float cpu_tdc;        // TDC current (Amps)
+    float cpu_fabric_clk; // Fabric clock MHz
+    float cpu_bus_speed;  // Bus speed MHz
+    float cpu_mem_clk;    // Memory clock MHz
+
+    // Advanced: GPU
+    float gpu_volt;       // Core voltage
+    float gpu_mem_ctrl_load; // Memory controller load %
+    float gpu_vid_eng_load;  // Video engine load %
+    float gpu_bus_load;   // Bus load %
+    float gpu_board_pwr;  // Board power W
+    float gpu_fan_ctrl;   // Fan control %
+    float gpu_pcie_rx;    // PCIe Rx KB/s
+    float gpu_pcie_tx;    // PCIe Tx KB/s
+    float gpu_d3d_3d;     // D3D 3D load %
+    float gpu_d3d_copy;   // D3D Copy load %
+    float gpu_d3d_vdec;   // D3D Video Decode %
+    float gpu_d3d_venc;   // D3D Video Encode %
+    float gpu_dmem;       // D3D dedicated memory MB
+    float gpu_smem;       // D3D shared memory MB
+
+    // Advanced: RAM
+    int   dimm_temps[4];  // Per-DIMM temperatures
+    int   dimm_count;     // Number of DIMMs with temp
+    float vm_used;        // Virtual memory used GB
+    float vm_total;       // Virtual memory total GB
+
+    // Advanced: Disk I/O
+    float disk_read[8];   // Per-disk read KB/s
+    float disk_write[8];  // Per-disk write KB/s
+    float disk_act[8];    // Per-disk activity %
 
     // Detail data
     float gpu_core_clock; // GPU core clock MHz
@@ -87,8 +140,18 @@ private:
     void drawNetDetail(const HWData &data);
     void drawBackButton();
     void drawNextButton();
+    void drawAdvButton();
+    void drawMainButton();
     ScreenState nextDetailScreen(ScreenState current);
+    ScreenState nextAdvDetailScreen(ScreenState current);
     void drawStandbyScreen();
+    void drawAdvMainScreen(const HWData &data);
+    void drawAdvMoboDetail(const HWData &data);
+    void drawAdvCpuDetail(const HWData &data);
+    void drawAdvGpuDetail(const HWData &data);
+    void drawAdvRamDetail(const HWData &data);
+    void drawAdvDiskDetail(const HWData &data);
+    void drawCurrentScreen(const HWData &data);
 
     lgfx::LGFX_Device *_lcd;
     lgfx::LGFX_Sprite *_sprite;

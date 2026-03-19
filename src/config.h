@@ -37,6 +37,9 @@
 #define COL_ORANGE    0xFD20  // Orange
 #define COL_BAR_BG    0x2104  // Dark gray for bar background
 #define COL_DIVIDER   0x4208  // Medium gray
+#define COL_PURPLE    0xC01F  // Bright purple (Advanced screens accent)
+#define COL_MAGENTA   0xF81F  // Magenta
+#define COL_VIOLET    0xB41F  // Light violet for headers
 
 // Standby screen (subtle, Apple-style)
 #define COL_STANDBY_BG    0x0000  // Pure black
