@@ -23,7 +23,8 @@ Most PC hardware monitoring solutions either require a second monitor or rely on
 - **Network Monitoring**: Download/upload speed (KB/s, MB/s, GB/s), active adapter auto-detection, auto-scaled history graphs
 - **Fan Speed Display**: System fans (motherboard) + GPU fan with RPM bars
 - **Disk Temperature Display**: Color-coded per drive (green/yellow/red)
-- **Touch Navigation**: Tap any area for a detail view, back button top-left — 7 detail screens
+- **Touch Navigation**: Tap any area for a detail view, back button top-left — 7 detail screens + 5 advanced detail screens
+- **Advanced View**: "..." button opens advanced monitoring with motherboard voltages, die temps, D3D loads, DIMM temps, disk I/O throughput
 - **Anti-Flicker Rendering**: Direct LCD updates without full-screen redraws
 - **Auto-Reconnect**: Detects USB connection loss (5s timeout), Python script survives port changes
 - **Color-Coded Temperatures**: Green (<60°C) → Yellow (60–80°C) → Red (>80°C)
@@ -125,6 +126,18 @@ Detailed instructions: [docs/SETUP.md](docs/SETUP.md)
 | NET row                   | Network Detail    |
 | Bottom-left (Fans)        | Fan Detail        |
 | Bottom-right (Disk Temps) | Disk Detail       |
+| "..." button (bottom-right) | Advanced Main   |
+
+### Advanced Screen
+
+| Tap Area                  | Opens Detail View      |
+|---------------------------|------------------------|
+| Motherboard section       | Motherboard Detail     |
+| CPU Internals section     | CPU Advanced Detail    |
+| RAM / DIMM section        | RAM Advanced Detail    |
+| Disk I/O section          | Disk I/O Detail        |
+| GPU section               | GPU Advanced Detail    |
+| MAIN button (top-right)   | Back to Main Screen    |
 
 ## Project Structure
 

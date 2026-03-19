@@ -196,6 +196,54 @@ ScreenState PCMonitorDisplay::nextDetailScreen(ScreenState current) {
     }
 }
 
+ScreenState PCMonitorDisplay::nextAdvDetailScreen(ScreenState current) {
+    switch (current) {
+        case SCREEN_ADV_MOBO: return SCREEN_ADV_CPU;
+        case SCREEN_ADV_CPU:  return SCREEN_ADV_GPU;
+        case SCREEN_ADV_GPU:  return SCREEN_ADV_RAM;
+        case SCREEN_ADV_RAM:  return SCREEN_ADV_DISK;
+        case SCREEN_ADV_DISK: return SCREEN_ADV_MOBO;  // wrap around
+        default:              return SCREEN_ADV_MAIN;
+    }
+}
+
+void PCMonitorDisplay::drawAdvButton() {
+    // "..." button bottom-right of main screen
+    int bw = 36, bh = 20;
+    int bx = SCREEN_W - bw - 6;
+    int by = SCREEN_H - bh - 4;
+    _lcd->fillRoundRect(bx, by, bw, bh, 4, COL_PURPLE);
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_TEXT, COL_PURPLE);
+    _lcd->drawCenterString("...", bx + bw / 2, by + 3);
+}
+
+void PCMonitorDisplay::drawMainButton() {
+    // "MAIN" button top-left of advanced main screen
+    _lcd->fillRoundRect(4, 4, 50, BACK_BTN_H, 4, COL_DIVIDER);
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_TEXT, COL_DIVIDER);
+    _lcd->drawString("MAIN", 8, 8);
+}
+
+void PCMonitorDisplay::drawCurrentScreen(const HWData &data) {
+    switch (_screen) {
+        case SCREEN_CPU_DETAIL:  drawCpuDetail(data); break;
+        case SCREEN_GPU_DETAIL:  drawGpuDetail(data); break;
+        case SCREEN_RAM_DETAIL:  drawRamDetail(data); break;
+        case SCREEN_DISK_DETAIL: drawDiskDetail(data); break;
+        case SCREEN_FAN_DETAIL:  drawFanDetail(data); break;
+        case SCREEN_NET_DETAIL:  drawNetDetail(data); break;
+        case SCREEN_ADV_MAIN:    drawAdvMainScreen(data); break;
+        case SCREEN_ADV_MOBO:    drawAdvMoboDetail(data); break;
+        case SCREEN_ADV_CPU:     drawAdvCpuDetail(data); break;
+        case SCREEN_ADV_GPU:     drawAdvGpuDetail(data); break;
+        case SCREEN_ADV_RAM:     drawAdvRamDetail(data); break;
+        case SCREEN_ADV_DISK:    drawAdvDiskDetail(data); break;
+        default: break;
+    }
+}
+
 void PCMonitorDisplay::showStandby() {
     _disconnectMillis = millis();
     _screen = SCREEN_STANDBY;
@@ -333,6 +381,15 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
     _lastTouchTime = millis();
 
     if (_screen == SCREEN_MAIN) {
+        // Check "..." button (bottom right)
+        if (tp.x > SCREEN_W - 50 && tp.y > SCREEN_H - 30) {
+            _screen = SCREEN_ADV_MAIN;
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+            drawAdvMainScreen(data);
+            return;
+        }
+
         // Determine which zone was tapped
         ScreenState newScreen = SCREEN_MAIN;
         if (tp.y >= CPU_GPU_Y && tp.y < RAM_Y) {
@@ -360,19 +417,53 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
             _screen = newScreen;
             _first_draw = true;
             _lcd->fillScreen(COL_BG);
-            // Immediately draw the detail screen
-            switch (_screen) {
-                case SCREEN_CPU_DETAIL:  drawCpuDetail(data); break;
-                case SCREEN_GPU_DETAIL:  drawGpuDetail(data); break;
-                case SCREEN_RAM_DETAIL:  drawRamDetail(data); break;
-                case SCREEN_DISK_DETAIL: drawDiskDetail(data); break;
-                case SCREEN_FAN_DETAIL:  drawFanDetail(data); break;
-                case SCREEN_NET_DETAIL:  drawNetDetail(data); break;
-                default: break;
+            drawCurrentScreen(data);
+        }
+    } else if (_screen == SCREEN_ADV_MAIN) {
+        // "MAIN" button (top left) → go back to main screen
+        if (tp.x < 60 && tp.y < BACK_BTN_H + 10) {
+            _screen = SCREEN_MAIN;
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+            return;
+        }
+        // Tap zones on Advanced main → go to detail
+        ScreenState newScreen = SCREEN_ADV_MAIN;
+        if (tp.y >= 34 && tp.y < 130) {
+            if (tp.x < SCREEN_W / 2) {
+                newScreen = SCREEN_ADV_MOBO;
+            } else {
+                newScreen = SCREEN_ADV_CPU;
             }
+        } else if (tp.y >= 130 && tp.y < 180) {
+            newScreen = SCREEN_ADV_RAM;
+        } else if (tp.y >= 180 && tp.y < 240) {
+            newScreen = SCREEN_ADV_DISK;
+        } else if (tp.y >= 240) {
+            newScreen = SCREEN_ADV_GPU;
+        }
+
+        if (newScreen != SCREEN_ADV_MAIN) {
+            _screen = newScreen;
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+            drawCurrentScreen(data);
+        }
+    } else if (_screen >= SCREEN_ADV_MOBO && _screen <= SCREEN_ADV_DISK) {
+        // Advanced detail screens: Back → ADV_MAIN, Next → cycle
+        if (tp.x < BACK_BTN_W + 10 && tp.y < BACK_BTN_H + 10) {
+            _screen = SCREEN_ADV_MAIN;
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+        }
+        else if (tp.x > SCREEN_W - NEXT_BTN_W - 10 && tp.y < NEXT_BTN_H + 10) {
+            _screen = nextAdvDetailScreen(_screen);
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+            drawCurrentScreen(data);
         }
     } else {
-        // Any detail screen: check back button (top left)
+        // Basic detail screens: check back button (top left)
         if (tp.x < BACK_BTN_W + 10 && tp.y < BACK_BTN_H + 10) {
             _screen = SCREEN_MAIN;
             _first_draw = true;
@@ -383,16 +474,7 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
             _screen = nextDetailScreen(_screen);
             _first_draw = true;
             _lcd->fillScreen(COL_BG);
-            // Immediately draw the new detail screen
-            switch (_screen) {
-                case SCREEN_CPU_DETAIL:  drawCpuDetail(data); break;
-                case SCREEN_GPU_DETAIL:  drawGpuDetail(data); break;
-                case SCREEN_RAM_DETAIL:  drawRamDetail(data); break;
-                case SCREEN_DISK_DETAIL: drawDiskDetail(data); break;
-                case SCREEN_FAN_DETAIL:  drawFanDetail(data); break;
-                case SCREEN_NET_DETAIL:  drawNetDetail(data); break;
-                default: break;
-            }
+            drawCurrentScreen(data);
         }
     }
 }
@@ -423,14 +505,20 @@ void PCMonitorDisplay::update(const HWData &data) {
     }
 
     switch (_screen) {
-        case SCREEN_MAIN:       drawMainScreen(data); break;
-        case SCREEN_CPU_DETAIL: drawCpuDetail(data); break;
-        case SCREEN_GPU_DETAIL: drawGpuDetail(data); break;
-        case SCREEN_RAM_DETAIL: drawRamDetail(data); break;
-        case SCREEN_DISK_DETAIL:drawDiskDetail(data); break;
-        case SCREEN_FAN_DETAIL: drawFanDetail(data); break;
-        case SCREEN_NET_DETAIL: drawNetDetail(data); break;
-        case SCREEN_STANDBY:    break;  // handled by updateStandby()
+        case SCREEN_MAIN:        drawMainScreen(data); break;
+        case SCREEN_CPU_DETAIL:  drawCpuDetail(data); break;
+        case SCREEN_GPU_DETAIL:  drawGpuDetail(data); break;
+        case SCREEN_RAM_DETAIL:  drawRamDetail(data); break;
+        case SCREEN_DISK_DETAIL: drawDiskDetail(data); break;
+        case SCREEN_FAN_DETAIL:  drawFanDetail(data); break;
+        case SCREEN_NET_DETAIL:  drawNetDetail(data); break;
+        case SCREEN_ADV_MAIN:    drawAdvMainScreen(data); break;
+        case SCREEN_ADV_MOBO:    drawAdvMoboDetail(data); break;
+        case SCREEN_ADV_CPU:     drawAdvCpuDetail(data); break;
+        case SCREEN_ADV_GPU:     drawAdvGpuDetail(data); break;
+        case SCREEN_ADV_RAM:     drawAdvRamDetail(data); break;
+        case SCREEN_ADV_DISK:    drawAdvDiskDetail(data); break;
+        case SCREEN_STANDBY:     break;  // handled by updateStandby()
     }
 
     // Update history (always, regardless of screen)
@@ -623,6 +711,9 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
         }
         _lcd->drawString(buf, cx + 100, cy);
     }
+
+    // "..." Advanced button (bottom right)
+    drawAdvButton();
 
     // Connection dot (top right corner)
     _lcd->fillCircle(SCREEN_W - 8, 6, 4, data.connected ? COL_GREEN : COL_RED);
@@ -1199,4 +1290,754 @@ void PCMonitorDisplay::drawNetDetail(const HWData &data) {
     }
     drawGraph(10, y, SCREEN_W - 20, 55, normDlC, HISTORY_LEN, COL_GREEN);
     drawGraph(10, y, SCREEN_W - 20, 55, normUlC, HISTORY_LEN, COL_CYAN);
+}
+
+
+// ==================== ADVANCED MAIN SCREEN ====================
+
+// Helper: draw a section header bar with colored background
+static void drawSectionBar(lgfx::LGFX_Device *lcd, int x, int y, int w, const char *label, uint16_t accentCol) {
+    lcd->fillRoundRect(x, y, w, 16, 3, accentCol);
+    lcd->setFont(&fonts::Font0);
+    lcd->setTextColor(COL_TEXT, accentCol);
+    lcd->drawString(label, x + 4, y + 4);
+}
+
+void PCMonitorDisplay::drawAdvMainScreen(const HWData &data) {
+    char buf[64];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawMainButton();
+
+        // Title bar
+        _lcd->fillRect(60, 2, SCREEN_W - 120, 24, COL_HEADER);
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_TEXT, COL_HEADER);
+        _lcd->drawCenterString("ADVANCED", SCREEN_W / 2, 6);
+
+        // Section header bars
+        drawSectionBar(_lcd, 4, 30, 230, "MOTHERBOARD", COL_DIVIDER);
+        drawSectionBar(_lcd, 246, 30, 230, "CPU INTERNALS", COL_DIVIDER);
+        drawSectionBar(_lcd, 4, 134, SCREEN_W - 8, "RAM / DIMM", COL_DIVIDER);
+        drawSectionBar(_lcd, 4, 184, SCREEN_W - 8, "DISK I/O", COL_DIVIDER);
+        drawSectionBar(_lcd, 4, 252, SCREEN_W - 8, "GPU", COL_DIVIDER);
+
+        _first_draw = false;
+    }
+
+    // === Motherboard section (left, rows 48-130) ===
+    int y = 50;
+    _lcd->setFont(&fonts::Font2);
+
+    // Voltages in a compact row
+    snprintf(buf, sizeof(buf), "Vcore  ");
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 8, y);
+    snprintf(buf, sizeof(buf), "%.3fV ", data.mb_vcore);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 60, y);
+    y += 16;
+
+    snprintf(buf, sizeof(buf), "+3.3V  ");
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 8, y);
+    snprintf(buf, sizeof(buf), "%.2fV ", data.mb_33v);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 60, y);
+
+    snprintf(buf, sizeof(buf), "CMOS ");
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 130, y);
+    snprintf(buf, sizeof(buf), "%.2fV ", data.mb_cmos);
+    uint16_t cmCol = (data.mb_cmos > 2.7f) ? COL_GREEN : COL_RED;
+    _lcd->setTextColor(cmCol, COL_BG);
+    _lcd->drawString(buf, 170, y);
+    y += 18;
+
+    // Board temps with mini bars
+    for (int i = 0; i < data.mb_temp_count && i < 4; i++) {
+        snprintf(buf, sizeof(buf), "%-6s", data.mb_tnames[i]);
+        _lcd->setTextColor(COL_LABEL, COL_BG);
+        _lcd->drawString(buf, 8, y);
+        snprintf(buf, sizeof(buf), "%dC ", data.mb_temps[i]);
+        _lcd->setTextColor(tempColor((float)data.mb_temps[i]), COL_BG);
+        _lcd->drawString(buf, 65, y);
+        // Mini temp bar
+        float tPct = (data.mb_temps[i] / 100.0f) * 100.0f;
+        if (tPct > 100) tPct = 100;
+        drawBar(110, y + 3, 120, 8, tPct, tempColor((float)data.mb_temps[i]));
+        y += 15;
+    }
+
+    // === CPU Internals section (right, rows 48-130) ===
+    int rx = 250;
+    y = 50;
+
+    // CCD temps side by side with bars
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("CCD1", rx, y);
+    snprintf(buf, sizeof(buf), "%.0fC ", data.cpu_ccd1_temp);
+    _lcd->setTextColor(tempColor(data.cpu_ccd1_temp), COL_BG);
+    _lcd->drawString(buf, rx + 40, y);
+    drawBar(rx + 80, y + 3, 60, 8, (data.cpu_ccd1_temp / 100.0f) * 100.0f, tempColor(data.cpu_ccd1_temp));
+
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("CCD2", rx + 150, y);
+    snprintf(buf, sizeof(buf), "%.0fC ", data.cpu_ccd2_temp);
+    _lcd->setTextColor(tempColor(data.cpu_ccd2_temp), COL_BG);
+    _lcd->drawString(buf, rx + 190, y);
+    y += 16;
+
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("SoC", rx, y);
+    snprintf(buf, sizeof(buf), "%.0fC ", data.cpu_soc_temp);
+    _lcd->setTextColor(tempColor(data.cpu_soc_temp), COL_BG);
+    _lcd->drawString(buf, rx + 40, y);
+    y += 18;
+
+    // TDC with bar
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("TDC", rx, y);
+    snprintf(buf, sizeof(buf), "%.1fA ", data.cpu_tdc);
+    uint16_t tdcCol = (data.cpu_tdc < 80) ? COL_GREEN : (data.cpu_tdc < 120) ? COL_YELLOW : COL_RED;
+    _lcd->setTextColor(tdcCol, COL_BG);
+    _lcd->drawString(buf, rx + 40, y);
+    float tdcPct = (data.cpu_tdc / 160.0f) * 100.0f;
+    if (tdcPct > 100) tdcPct = 100;
+    drawBar(rx + 100, y + 3, 126, 8, tdcPct, tdcCol);
+    y += 18;
+
+    // Clocks
+    snprintf(buf, sizeof(buf), "Fab %.0f  Mem %.0f MHz ", data.cpu_fabric_clk, data.cpu_mem_clk);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, rx, y);
+    y += 16;
+
+    snprintf(buf, sizeof(buf), "Bus %.1f MHz ", data.cpu_bus_speed);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, rx, y);
+
+    // === RAM / DIMM section (rows 150-180) ===
+    y = 153;
+    _lcd->setFont(&fonts::Font2);
+
+    // DIMM temps as horizontal boxes
+    for (int i = 0; i < data.dimm_count && i < 4; i++) {
+        int dx = 8 + i * 118;
+        // Small colored box
+        uint16_t dc = tempColor((float)data.dimm_temps[i]);
+        _lcd->fillRoundRect(dx, y, 110, 24, 3, COL_BAR_BG);
+        _lcd->drawRoundRect(dx, y, 110, 24, 3, dc);
+        snprintf(buf, sizeof(buf), "D%d", i + 1);
+        _lcd->setTextColor(COL_LABEL, COL_BAR_BG);
+        _lcd->drawString(buf, dx + 4, y + 5);
+        snprintf(buf, sizeof(buf), "%dC", data.dimm_temps[i]);
+        _lcd->setTextColor(dc, COL_BAR_BG);
+        _lcd->drawString(buf, dx + 36, y + 5);
+        // Mini bar inside box
+        float dimPct = (data.dimm_temps[i] / 80.0f) * 100.0f;
+        drawBar(dx + 72, y + 7, 34, 8, dimPct, dc);
+    }
+
+    // === Disk I/O section (rows 202-248) ===
+    y = 203;
+    _lcd->setFont(&fonts::Font2);
+
+    for (int i = 0; i < data.disk_count && i < 4; i++) {
+        char rdBuf[12], wrBuf[12];
+        formatSpeed(data.disk_read[i], rdBuf, sizeof(rdBuf));
+        formatSpeed(data.disk_write[i], wrBuf, sizeof(wrBuf));
+
+        // Disk name
+        snprintf(buf, sizeof(buf), "%-7s", data.disk_name[i]);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, 8, y);
+
+        // R/W speeds
+        _lcd->setFont(&fonts::Font0);
+        _lcd->setTextColor(COL_GREEN, COL_BG);
+        snprintf(buf, sizeof(buf), "R:%-9s", rdBuf);
+        _lcd->drawString(buf, 80, y + 1);
+        _lcd->setTextColor(COL_ORANGE, COL_BG);
+        snprintf(buf, sizeof(buf), "W:%-9s", wrBuf);
+        _lcd->drawString(buf, 170, y + 1);
+        _lcd->setFont(&fonts::Font2);
+
+        // Activity bar (remaining width)
+        drawBar(270, y + 2, 140, 10, data.disk_act[i], COL_BLUE);
+        snprintf(buf, sizeof(buf), "%.1f%%", data.disk_act[i]);
+        _lcd->setFont(&fonts::Font0);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, 416, y + 2);
+        _lcd->setFont(&fonts::Font2);
+
+        // Temp
+        if (data.disk_temp[i] >= 0) {
+            snprintf(buf, sizeof(buf), "%dC", data.disk_temp[i]);
+            _lcd->setTextColor(tempColor((float)data.disk_temp[i]), COL_BG);
+            _lcd->drawString(buf, 450, y);
+        }
+
+        y += 12;
+    }
+
+    // === GPU Advanced section (rows 268-316) ===
+    y = 268;
+    _lcd->setFont(&fonts::Font2);
+
+    // GPU row 1: Voltage + Power + D3D
+    snprintf(buf, sizeof(buf), "%.3fV ", data.gpu_volt);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 8, y);
+
+    snprintf(buf, sizeof(buf), "%.0fW ", data.gpu_board_pwr);
+    _lcd->setTextColor(COL_ORANGE, COL_BG);
+    _lcd->drawString(buf, 80, y);
+
+    snprintf(buf, sizeof(buf), "Fan:%d%% ", (int)data.gpu_fan_ctrl);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 135, y);
+
+    // D3D bar
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("D3D", 230, y);
+    drawBar(270, y + 3, 120, 10, data.gpu_d3d_3d, COL_GREEN);
+    snprintf(buf, sizeof(buf), "%.0f%%", data.gpu_d3d_3d);
+    _lcd->setTextColor(COL_GREEN, COL_BG);
+    _lcd->drawString(buf, 396, y);
+    y += 16;
+
+    // GPU row 2: PCIe + MC/VE
+    char rxBuf[16], txBuf[16];
+    formatSpeed(data.gpu_pcie_rx, rxBuf, sizeof(rxBuf));
+    formatSpeed(data.gpu_pcie_tx, txBuf, sizeof(txBuf));
+    _lcd->setFont(&fonts::Font0);
+    snprintf(buf, sizeof(buf), "PCIe Rx:%s  Tx:%s", rxBuf, txBuf);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 8, y + 2);
+
+    snprintf(buf, sizeof(buf), "MC:%.0f%% VE:%.0f%% Bus:%.0f%%", data.gpu_mem_ctrl_load, data.gpu_vid_eng_load, data.gpu_bus_load);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 270, y + 2);
+
+    // GPU row 3: D3D memory
+    y += 14;
+    snprintf(buf, sizeof(buf), "D3D Mem: %.0fMB ded  %.0fMB shared   VDec:%.0f%% VEnc:%.0f%%", data.gpu_dmem, data.gpu_smem, data.gpu_d3d_vdec, data.gpu_d3d_venc);
+    _lcd->drawString(buf, 8, y + 2);
+
+    // Connection dot
+    _lcd->fillCircle(SCREEN_W - 8, 6, 4, data.connected ? COL_GREEN : COL_RED);
+}
+
+
+// ==================== ADV MOTHERBOARD DETAIL ====================
+
+void PCMonitorDisplay::drawAdvMoboDetail(const HWData &data) {
+    char buf[64];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+        drawNextButton();
+
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_MAGENTA, COL_BG);
+        _lcd->drawCenterString("MOTHERBOARD", SCREEN_W / 2, 4);
+
+        _first_draw = false;
+    }
+
+    int y = 40;
+
+    // Voltages section
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Voltages", 10, y);
+    y += 22;
+
+    _lcd->setFont(&fonts::Font4);
+    snprintf(buf, sizeof(buf), "Vcore: %.3f V  ", data.mb_vcore);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 20, y);
+    y += 32;
+
+    _lcd->setFont(&fonts::Font2);
+    snprintf(buf, sizeof(buf), "+3.3V: %.2f V   ", data.mb_33v);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    snprintf(buf, sizeof(buf), "CMOS Batt: %.2f V   ", data.mb_cmos);
+    uint16_t cmosCol = (data.mb_cmos > 2.7f) ? COL_GREEN : (data.mb_cmos > 2.5f) ? COL_YELLOW : COL_RED;
+    _lcd->setTextColor(cmosCol, COL_BG);
+    _lcd->drawString(buf, 220, y);
+    y += 28;
+
+    // Divider
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 8;
+
+    // Board temperatures
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Board Temperatures", 10, y);
+    y += 22;
+
+    for (int i = 0; i < data.mb_temp_count && i < 6; i++) {
+        int cx = (i % 2 == 0) ? 20 : 250;
+        int cy = y + (i / 2) * 28;
+
+        snprintf(buf, sizeof(buf), "%-8s", data.mb_tnames[i]);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, cx, cy);
+
+        snprintf(buf, sizeof(buf), "%d C   ", data.mb_temps[i]);
+        _lcd->setTextColor(tempColor((float)data.mb_temps[i]), COL_BG);
+        _lcd->drawString(buf, cx + 90, cy);
+
+        // Temp bar
+        float tPct = (data.mb_temps[i] / 100.0f) * 100.0f;
+        if (tPct > 100) tPct = 100;
+        drawBar(cx + 140, cy + 2, 80, 12, tPct, tempColor((float)data.mb_temps[i]));
+    }
+
+    y += ((data.mb_temp_count + 1) / 2) * 28 + 8;
+
+    // Fan Control
+    if (y < 260) {
+        _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+        y += 8;
+
+        _lcd->setTextColor(COL_LABEL, COL_BG);
+        _lcd->drawString("Fan Control", 10, y);
+        y += 22;
+
+        for (int i = 0; i < data.mb_fan_ctrl_count && i < 4 && y < 310; i++) {
+            snprintf(buf, sizeof(buf), "Fan %d:", i + 1);
+            _lcd->setTextColor(COL_TEXT, COL_BG);
+            _lcd->drawString(buf, 20, y);
+
+            snprintf(buf, sizeof(buf), "%d%%  ", data.mb_fan_ctrl[i]);
+            _lcd->drawString(buf, 80, y);
+
+            drawBar(120, y + 2, 340, 12, (float)data.mb_fan_ctrl[i], COL_CYAN);
+            y += 20;
+        }
+    }
+}
+
+
+// ==================== ADV CPU DETAIL ====================
+
+void PCMonitorDisplay::drawAdvCpuDetail(const HWData &data) {
+    char buf[64];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+        drawNextButton();
+
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_CYAN, COL_BG);
+        _lcd->drawCenterString("CPU ADV", SCREEN_W / 2, 4);
+
+        _first_draw = false;
+    }
+
+    int y = 38;
+
+    // Die temperatures
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Die Temperatures", 10, y);
+    y += 22;
+
+    _lcd->setFont(&fonts::Font4);
+    snprintf(buf, sizeof(buf), "CCD1: %.0f C  ", data.cpu_ccd1_temp);
+    _lcd->setTextColor(tempColor(data.cpu_ccd1_temp), COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    snprintf(buf, sizeof(buf), "CCD2: %.0f C  ", data.cpu_ccd2_temp);
+    _lcd->setTextColor(tempColor(data.cpu_ccd2_temp), COL_BG);
+    _lcd->drawString(buf, 250, y);
+    y += 32;
+
+    _lcd->setFont(&fonts::Font2);
+    snprintf(buf, sizeof(buf), "SoC: %.0f C  ", data.cpu_soc_temp);
+    _lcd->setTextColor(tempColor(data.cpu_soc_temp), COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    snprintf(buf, sizeof(buf), "Tctl: %.1f C  ", data.cpu_temp);
+    _lcd->setTextColor(tempColor(data.cpu_temp), COL_BG);
+    _lcd->drawString(buf, 200, y);
+    y += 28;
+
+    // Divider
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 8;
+
+    // TDC Current
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("TDC Current", 10, y);
+    y += 20;
+
+    _lcd->setFont(&fonts::Font4);
+    snprintf(buf, sizeof(buf), "%.1f A    ", data.cpu_tdc);
+    uint16_t tdcCol = (data.cpu_tdc < 80) ? COL_GREEN : (data.cpu_tdc < 120) ? COL_YELLOW : COL_RED;
+    _lcd->setTextColor(tdcCol, COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    // TDC bar (assume 160A max for 5950X)
+    float tdcPct = (data.cpu_tdc / 160.0f) * 100.0f;
+    if (tdcPct > 100) tdcPct = 100;
+    drawBar(180, y + 5, 280, 16, tdcPct, tdcCol);
+    y += 32;
+
+    // Divider
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 8;
+
+    // Clocks
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Internal Clocks", 10, y);
+    y += 22;
+
+    snprintf(buf, sizeof(buf), "Fabric: %.0f MHz   ", data.cpu_fabric_clk);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    snprintf(buf, sizeof(buf), "Memory: %.0f MHz   ", data.cpu_mem_clk);
+    _lcd->setTextColor(COL_GREEN, COL_BG);
+    _lcd->drawString(buf, 250, y);
+    y += 20;
+
+    snprintf(buf, sizeof(buf), "Bus Speed: %.1f MHz   ", data.cpu_bus_speed);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    snprintf(buf, sizeof(buf), "Avg Clock: %.0f MHz   ", data.cpu_clock);
+    _lcd->setTextColor(COL_ORANGE, COL_BG);
+    _lcd->drawString(buf, 250, y);
+    y += 28;
+
+    // Power section
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 8;
+
+    snprintf(buf, sizeof(buf), "Package: %.0f W   Voltage: %.3f V   ", data.cpu_power, data.cpu_voltage);
+    _lcd->setTextColor(COL_ORANGE, COL_BG);
+    _lcd->drawString(buf, 10, y);
+}
+
+
+// ==================== ADV GPU DETAIL ====================
+
+void PCMonitorDisplay::drawAdvGpuDetail(const HWData &data) {
+    char buf[64];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+        drawNextButton();
+
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_GREEN, COL_BG);
+        _lcd->drawCenterString("GPU ADV", SCREEN_W / 2, 4);
+
+        _first_draw = false;
+    }
+
+    int y = 38;
+
+    // Voltage + Board Power
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Power & Voltage", 10, y);
+    y += 20;
+
+    snprintf(buf, sizeof(buf), "Core: %.3f V  ", data.gpu_volt);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    snprintf(buf, sizeof(buf), "Board Pwr: %.0f W  ", data.gpu_board_pwr);
+    _lcd->setTextColor(COL_ORANGE, COL_BG);
+    _lcd->drawString(buf, 200, y);
+
+    snprintf(buf, sizeof(buf), "Fan: %d%%  ", (int)data.gpu_fan_ctrl);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 400, y);
+    y += 26;
+
+    // Divider
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 6;
+
+    // PCIe Throughput
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("PCIe Throughput", 10, y);
+    y += 20;
+
+    char rxBuf[16], txBuf[16];
+    formatSpeed(data.gpu_pcie_rx, rxBuf, sizeof(rxBuf));
+    formatSpeed(data.gpu_pcie_tx, txBuf, sizeof(txBuf));
+
+    snprintf(buf, sizeof(buf), "Rx: %s  ", rxBuf);
+    _lcd->setTextColor(COL_GREEN, COL_BG);
+    _lcd->drawString(buf, 20, y);
+    drawBar(150, y + 2, 80, 12, 0, COL_GREEN);  // placeholder
+
+    snprintf(buf, sizeof(buf), "Tx: %s  ", txBuf);
+    _lcd->setTextColor(COL_CYAN, COL_BG);
+    _lcd->drawString(buf, 260, y);
+    drawBar(380, y + 2, 80, 12, 0, COL_CYAN);
+    y += 24;
+
+    // Divider
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 6;
+
+    // D3D Engine Loads
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("D3D Engine Loads", 10, y);
+    y += 20;
+
+    // 3D bar
+    snprintf(buf, sizeof(buf), "3D: %.0f%%  ", data.gpu_d3d_3d);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 20, y);
+    drawBar(100, y + 2, 370, 14, data.gpu_d3d_3d, COL_GREEN);
+    y += 20;
+
+    // Copy bar
+    snprintf(buf, sizeof(buf), "Copy: %.0f%%", data.gpu_d3d_copy);
+    _lcd->drawString(buf, 20, y);
+    drawBar(100, y + 2, 370, 14, data.gpu_d3d_copy, COL_CYAN);
+    y += 20;
+
+    // Video Decode
+    snprintf(buf, sizeof(buf), "VDec: %.0f%%", data.gpu_d3d_vdec);
+    _lcd->drawString(buf, 20, y);
+    drawBar(100, y + 2, 370, 14, data.gpu_d3d_vdec, COL_ORANGE);
+    y += 20;
+
+    // Video Encode
+    snprintf(buf, sizeof(buf), "VEnc: %.0f%%", data.gpu_d3d_venc);
+    _lcd->drawString(buf, 20, y);
+    drawBar(100, y + 2, 370, 14, data.gpu_d3d_venc, COL_YELLOW);
+    y += 26;
+
+    // Divider
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 6;
+
+    // Subsystem loads
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Subsystem Loads", 10, y);
+    y += 20;
+
+    snprintf(buf, sizeof(buf), "MemCtrl: %.0f%%  ", data.gpu_mem_ctrl_load);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 20, y);
+
+    snprintf(buf, sizeof(buf), "VidEng: %.0f%%  ", data.gpu_vid_eng_load);
+    _lcd->drawString(buf, 170, y);
+
+    snprintf(buf, sizeof(buf), "Bus: %.0f%%  ", data.gpu_bus_load);
+    _lcd->drawString(buf, 310, y);
+    y += 20;
+
+    // D3D Memory
+    snprintf(buf, sizeof(buf), "D3D Ded: %.0fMB  Shared: %.0fMB  ", data.gpu_dmem, data.gpu_smem);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString(buf, 20, y);
+}
+
+
+// ==================== ADV RAM DETAIL ====================
+
+void PCMonitorDisplay::drawAdvRamDetail(const HWData &data) {
+    char buf[64];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+        drawNextButton();
+
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_YELLOW, COL_BG);
+        _lcd->drawCenterString("RAM ADV", SCREEN_W / 2, 4);
+
+        _first_draw = false;
+    }
+
+    int y = 40;
+
+    // DIMM Temperatures
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("DIMM Temperatures", 10, y);
+    y += 24;
+
+    for (int i = 0; i < data.dimm_count && i < 4; i++) {
+        int barX = 20;
+        int barW = SCREEN_W - 40;
+
+        _lcd->setFont(&fonts::Font4);
+        snprintf(buf, sizeof(buf), "DIMM %d", i + 1);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, barX, y);
+
+        snprintf(buf, sizeof(buf), "%d C  ", data.dimm_temps[i]);
+        _lcd->setTextColor(tempColor((float)data.dimm_temps[i]), COL_BG);
+        _lcd->drawString(buf, 140, y);
+
+        // Temp bar (0-80°C range)
+        float dimPct = (data.dimm_temps[i] / 80.0f) * 100.0f;
+        if (dimPct > 100) dimPct = 100;
+        drawBar(220, y + 5, barW - 200, 18, dimPct, tempColor((float)data.dimm_temps[i]));
+
+        y += 38;
+    }
+
+    if (data.dimm_count == 0) {
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_DIVIDER, COL_BG);
+        _lcd->drawString("No DIMM temperature data available", 20, y);
+        y += 30;
+    }
+
+    y += 8;
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 10;
+
+    // Virtual Memory
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Virtual Memory", 10, y);
+    y += 22;
+
+    if (data.vm_total > 0) {
+        snprintf(buf, sizeof(buf), "Used: %.1f GB  ", data.vm_used);
+        _lcd->setTextColor(COL_ORANGE, COL_BG);
+        _lcd->drawString(buf, 20, y);
+
+        snprintf(buf, sizeof(buf), "Total: %.0f GB  ", data.vm_total);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, 200, y);
+        y += 22;
+
+        float vmPct = (data.vm_used / data.vm_total) * 100.0f;
+        drawBar(20, y, SCREEN_W - 40, 20, vmPct, COL_YELLOW);
+        snprintf(buf, sizeof(buf), "%.0f%%", vmPct);
+        _lcd->setTextColor(COL_BG, COL_YELLOW);
+        _lcd->drawCenterString(buf, SCREEN_W / 2, y + 3);
+        y += 28;
+    }
+
+    // Physical RAM comparison
+    y += 4;
+    _lcd->setFont(&fonts::Font2);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Physical Memory", 10, y);
+    y += 22;
+
+    snprintf(buf, sizeof(buf), "Used: %.1f GB / %.0f GB  (%.0f%%)  ",
+             data.ram_used_gb, data.ram_total_gb, data.ram_percent);
+    _lcd->setTextColor(COL_TEXT, COL_BG);
+    _lcd->drawString(buf, 20, y);
+    y += 20;
+    drawBar(20, y, SCREEN_W - 40, 16, data.ram_percent,
+            (data.ram_percent < 70) ? COL_GREEN : (data.ram_percent < 90) ? COL_YELLOW : COL_RED);
+}
+
+
+// ==================== ADV DISK I/O DETAIL ====================
+
+void PCMonitorDisplay::drawAdvDiskDetail(const HWData &data) {
+    char buf[64];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+        drawNextButton();
+
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_BLUE, COL_BG);
+        _lcd->drawCenterString("DISK I/O", SCREEN_W / 2, 4);
+
+        _first_draw = false;
+    }
+
+    int y = 36;
+
+    // Column headers
+    _lcd->setFont(&fonts::Font0);
+    _lcd->setTextColor(COL_LABEL, COL_BG);
+    _lcd->drawString("Drive", 10, y);
+    _lcd->drawString("Read", 90, y);
+    _lcd->drawString("Write", 190, y);
+    _lcd->drawString("Activity", 290, y);
+    _lcd->drawString("Temp", 430, y);
+    y += 14;
+
+    _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+    y += 4;
+
+    _lcd->setFont(&fonts::Font2);
+
+    for (int i = 0; i < data.disk_count && i < 8 && y < 300; i++) {
+        // Drive name
+        snprintf(buf, sizeof(buf), "%-7s", data.disk_name[i]);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, 10, y);
+
+        // Read speed
+        char rdBuf[14];
+        formatSpeed(data.disk_read[i], rdBuf, sizeof(rdBuf));
+        snprintf(buf, sizeof(buf), "%-10s", rdBuf);
+        _lcd->setTextColor(COL_GREEN, COL_BG);
+        _lcd->drawString(buf, 80, y);
+
+        // Write speed
+        char wrBuf[14];
+        formatSpeed(data.disk_write[i], wrBuf, sizeof(wrBuf));
+        snprintf(buf, sizeof(buf), "%-10s", wrBuf);
+        _lcd->setTextColor(COL_ORANGE, COL_BG);
+        _lcd->drawString(buf, 180, y);
+
+        // Activity bar
+        drawBar(280, y + 2, 100, 12, data.disk_act[i], COL_BLUE);
+        snprintf(buf, sizeof(buf), "%.1f%%", data.disk_act[i]);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, 385, y);
+
+        // Temperature
+        if (data.disk_temp[i] >= 0) {
+            snprintf(buf, sizeof(buf), "%dC ", data.disk_temp[i]);
+            _lcd->setTextColor(tempColor((float)data.disk_temp[i]), COL_BG);
+        } else {
+            snprintf(buf, sizeof(buf), "-- ");
+            _lcd->setTextColor(COL_DIVIDER, COL_BG);
+        }
+        _lcd->drawString(buf, 440, y);
+
+        y += 22;
+    }
+
+    // Summary
+    if (y < 290) {
+        y += 4;
+        _lcd->drawFastHLine(10, y, SCREEN_W - 20, COL_DIVIDER);
+        y += 8;
+
+        _lcd->setFont(&fonts::Font2);
+        float sPct = 0;
+        if (data.storage_total_tb > 0)
+            sPct = (data.storage_used_tb / data.storage_total_tb) * 100.0f;
+        snprintf(buf, sizeof(buf), "Total: %.1f/%.1f TB (%.0f%% used)  Free: %.1f TB  ",
+                 data.storage_used_tb, data.storage_total_tb, sPct, data.storage_free_tb);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, 10, y);
+    }
 }

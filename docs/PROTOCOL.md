@@ -9,7 +9,7 @@ Documentation of the communication protocol between the Python script and ESP32.
 - **Format**: JSON, one line per message, `\n`-terminated
 - **Frequency**: 2 Hz (every 0.5 seconds)
 - **Direction**: PC → ESP32 only (unidirectional)
-- **Buffer Size**: 2048 bytes (ESP32 side)
+- **Buffer Size**: 4096 bytes (ESP32 side)
 
 ## JSON Example
 
@@ -64,6 +64,64 @@ Documentation of the communication protocol between the Python script and ESP32.
 | netdup  | float  | GB   | Total data uploaded (session)                |
 | netddl  | float  | GB   | Total data downloaded (session)              |
 | netname | string | —    | Active network adapter name (e.g. Ethernet 6)|
+
+### Advanced: Motherboard
+
+| Field | Type   | Unit | Description                           |
+|-------|--------|------|---------------------------------------|
+| mbvc  | float  | V    | Motherboard Vcore voltage             |
+| mb33  | float  | V    | +3.3V rail                            |
+| mbcm  | float  | V    | CMOS battery voltage                  |
+| mbtp  | int[]  | °C   | Board temperatures (up to 6 sensors)  |
+| mbtn  | str[]  | —    | Board temperature sensor names (max 8 chars) |
+| mbfc  | int[]  | %    | Fan control percentages (up to 4)     |
+
+### Advanced: CPU
+
+| Field | Type  | Unit | Description                       |
+|-------|-------|------|-----------------------------------|
+| csoc  | float | °C   | SoC temperature                   |
+| ccd1  | float | °C   | CCD1 die temperature              |
+| ccd2  | float | °C   | CCD2 die temperature              |
+| ctdc  | float | A    | TDC current (Amps)                |
+| cfab  | float | MHz  | Fabric / Uncore clock             |
+| cbus  | float | MHz  | Bus speed                         |
+| cmcl  | float | MHz  | Memory controller clock           |
+
+### Advanced: GPU
+
+| Field | Type  | Unit | Description                        |
+|-------|-------|------|------------------------------------|
+| gvlt  | float | V    | GPU core voltage                   |
+| gmcl  | float | %    | Memory controller load             |
+| gvel  | float | %    | Video engine load                  |
+| gbl   | float | %    | Bus load                           |
+| gbpw  | float | W    | Board power                        |
+| gfct  | float | %    | Fan control percentage             |
+| gprx  | float | KB/s | PCIe Rx throughput                 |
+| gptx  | float | KB/s | PCIe Tx throughput                 |
+| gd3d  | float | %    | D3D 3D engine load                 |
+| gdcp  | float | %    | D3D Copy engine load               |
+| gdvd  | float | %    | D3D Video Decode load              |
+| gdve  | float | %    | D3D Video Encode load              |
+| gdm   | float | MB   | D3D dedicated memory               |
+| gsm   | float | MB   | D3D shared memory                  |
+
+### Advanced: RAM
+
+| Field | Type  | Unit | Description                        |
+|-------|-------|------|------------------------------------|
+| dimt  | int[] | °C   | Per-DIMM temperatures (up to 4)    |
+| vmu   | float | GB   | Virtual memory used                |
+| vmt   | float | GB   | Virtual memory total               |
+
+### Advanced: Disk I/O
+
+| Field | Type    | Unit | Description                       |
+|-------|---------|------|-----------------------------------|
+| drd   | float[] | KB/s | Per-disk read throughput           |
+| dwr   | float[] | KB/s | Per-disk write throughput          |
+| dact  | float[] | %    | Per-disk activity percentage (1 decimal) |
 
 ### CPU Cores
 
