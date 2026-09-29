@@ -4,11 +4,14 @@
 #include "parser.h"
 
 static HWData hwData;
-static unsigned long lastDataTime = 0;
-static const unsigned long TIMEOUT_MS = 5000;  // 5 sec without data = disconnected
+static unsigned long lastLinkTime = 0;   // last valid message of any kind from the PC
+static const unsigned long LINK_TIMEOUT_MS = 5000;  // 5 sec without any message = PC gone
 static char jsonBuf[4096];
 
 void setup() {
+    // Default RX buffer is only 256 bytes (~22 ms at 115200 baud). A screen redraw takes
+    // longer than that, so bytes of an incoming line were lost whenever the two overlapped.
+    Serial.setRxBufferSize(sizeof(jsonBuf));
     Serial.begin(SERIAL_BAUD);
     printf("\n=== PC Hardware Monitor for WT32-SC01 ===\n");
 
@@ -18,10 +21,9 @@ void setup() {
     hwData.gpu_fan_rpm = -1;
     strncpy(hwData.cpu_name, "---", sizeof(hwData.cpu_name));
     strncpy(hwData.gpu_name, "---", sizeof(hwData.gpu_name));
-    hwData.connected = false;
 
     display.init();
-    display.showStandby();
+    display.showStandby(STANDBY_NO_PC);
 
     printf("Ready. Waiting for serial data...\n");
 }
@@ -29,23 +31,39 @@ void setup() {
 void loop() {
     // Try to read a complete JSON line from serial
     if (serial_readLine(jsonBuf, sizeof(jsonBuf))) {
-        if (parseHWData(jsonBuf, hwData)) {
-            lastDataTime = millis();
+        MsgType msg = parseMessage(jsonBuf, hwData);
+        if (msg != MSG_INVALID) {
+            lastLinkTime = millis();
+            display.syncTime(hwData.pc_timestamp, hwData.tz_offset);
+        }
+
+        if (msg == MSG_DATA) {
             display.update(hwData);
+        } else if (msg == MSG_HEARTBEAT) {
+            // The script only sends heartbeats once LibreHardwareMonitor has been silent for a while
+            if (display.isStandby()) {
+                display.setStandbyReason(STANDBY_NO_LHM);
+            } else {
+                display.showStandby(STANDBY_NO_LHM);
+                printf("LibreHardwareMonitor not answering\n");
+            }
         }
     }
 
     // Handle touch input
     display.handleTouch(hwData);
 
-    // Check for timeout
-    if (hwData.connected && (millis() - lastDataTime > TIMEOUT_MS)) {
-        hwData.connected = false;
-        display.showStandby();
-        printf("Connection lost - no data for %lu ms\n", TIMEOUT_MS);
+    // Nothing at all from the PC for a while
+    if (millis() - lastLinkTime > LINK_TIMEOUT_MS) {
+        if (!display.isStandby()) {
+            display.showStandby(STANDBY_NO_PC);
+            printf("Connection lost - no data for %lu ms\n", LINK_TIMEOUT_MS);
+        } else {
+            display.setStandbyReason(STANDBY_NO_PC);
+        }
     }
 
-    // Update standby clock display every second
+    // Update standby clock display
     if (display.isStandby()) {
         display.updateStandby();
     }

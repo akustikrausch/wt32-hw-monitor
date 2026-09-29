@@ -22,6 +22,12 @@ enum ScreenState {
     SCREEN_STANDBY,
 };
 
+// Why the standby clock is shown (displayed as a hint line)
+enum StandbyReason {
+    STANDBY_NO_PC = 0,   // nothing received over USB (PC off, script not running, cable)
+    STANDBY_NO_LHM,      // script alive, but LibreHardwareMonitor does not answer
+};
+
 // Hardware data structure
 struct HWData {
     // Main screen data
@@ -113,7 +119,7 @@ struct HWData {
 
     char  cpu_name[32];
     char  gpu_name[32];
-    bool  connected;
+    int   data_age;       // Seconds since LibreHardwareMonitor last answered (0 = fresh)
 };
 
 // Display class for WT32-SC01 (ST7796S 480x320)
@@ -121,7 +127,9 @@ class PCMonitorDisplay {
 public:
     void init();
     void update(const HWData &data);
-    void showStandby();
+    void syncTime(unsigned long ts, int tzo);
+    void showStandby(StandbyReason reason);
+    void setStandbyReason(StandbyReason reason);
     void updateStandby();
     void handleTouch(const HWData &data);
     ScreenState getScreen() { return _screen; }
@@ -145,6 +153,7 @@ private:
     ScreenState nextDetailScreen(ScreenState current);
     ScreenState nextAdvDetailScreen(ScreenState current);
     void drawStandbyScreen();
+    void drawConnectionDot(const HWData &data);
     void drawAdvMainScreen(const HWData &data);
     void drawAdvMoboDetail(const HWData &data);
     void drawAdvCpuDetail(const HWData &data);
@@ -175,6 +184,9 @@ private:
     bool          _timeValid;           // Have we ever received a timestamp?
     int           _dotAnimState;        // Dot animation frame (0-3)
     unsigned long _lastDotAnim;         // Last dot animation update
+    StandbyReason _standbyReason;
+    bool          _standbyReasonDrawn;  // Hint line needs redraw?
+    int           _lastDateDay;         // Redraw/clear date line only when the day changes
 };
 
 extern PCMonitorDisplay display;

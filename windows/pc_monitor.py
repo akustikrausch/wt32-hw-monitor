@@ -13,33 +13,52 @@ Usage:
   python pc_monitor.py              # Auto-detect COM port
   python pc_monitor.py --port COM3  # Specify COM port
   python pc_monitor.py --test       # Test mode (fake data, no serial)
+
+Design:
+  LibreHardwareMonitor is polled in a background thread. On PCs with several HDDs a
+  single /data.json request can take seconds (SMART reads, drives spinning up). The
+  sender loop therefore never waits for LHM: it transmits at a fixed 2 Hz, repeating
+  the last good data set (with its age) and falling back to a heartbeat once LHM has
+  been silent for STALE_LIMIT seconds. The display can tell "PC gone" from "LHM hangs".
 """
 
-import json
-import time
-import sys
 import argparse
+import datetime
+import json
+import sys
+import threading
+import time
+
+import requests
 import serial
 import serial.tools.list_ports
-import requests
 
 LHM_URL = "http://localhost:8085/data.json"
 BAUD_RATE = 115200
-UPDATE_INTERVAL = 0.5  # seconds (2 Hz)
+UPDATE_INTERVAL = 0.5      # seconds between serial messages (2 Hz)
+LHM_POLL_INTERVAL = 1.0    # LHM refreshes its sensors once per second, polling faster is waste
+LHM_TIMEOUT = (2, 10)      # connect / read timeout for LibreHardwareMonitor
+STALE_LIMIT = 30           # seconds: after this, send heartbeats instead of old data
+WRITE_TIMEOUT = 2          # seconds: a blocked COM port must never freeze the sender
+STATUS_EVERY = 600         # seconds between status lines when not running in a console
+MAX_DISKS = 8              # the ESP32 displays up to 8 drives
+
+# USB-UART bridges used on ESP32 boards: Silicon Labs CP210x, WCH CH340/CH343
+ESP32_USB_VIDS = {0x10C4, 0x1A86}
+
+
+def log(msg):
+    """Event line with timestamp (goes to pc_monitor.log when started hidden)."""
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
 
 
 def find_esp32_port():
-    """Auto-detect ESP32 COM port (CP210x or CH340)."""
-    ports = serial.tools.list_ports.comports()
-    for p in ports:
+    """Auto-detect the ESP32 COM port. Never guesses: a wrong port would receive JSON."""
+    for p in serial.tools.list_ports.comports():
         desc = (p.description or "").lower()
-        if "cp210" in desc or "ch340" in desc:
-            print(f"Found ESP32 on {p.device}: {p.description}")
-            return p.device
-    if ports:
-        print(f"No ESP32 detected, using first port: {ports[0].device}")
-        return ports[0].device
-    return None
+        if p.vid in ESP32_USB_VIDS or "cp210" in desc or "ch340" in desc or "ch343" in desc:
+            return p.device, p.description
+    return None, None
 
 
 def parse_value(val_str):
@@ -307,7 +326,7 @@ def collect_hw_data(root):
     disk_temps = []
     disk_names = []
     disk_sizes = []  # Total GB per drive
-    for hdd in hdd_nodes:
+    for hdd in hdd_nodes[:MAX_DISKS]:
         # Temperature
         temp_group = find_sensor_group(hdd, "Temperatures")
         temp_val = -1
@@ -693,7 +712,7 @@ def collect_hw_data(root):
     disk_write = []  # KB/s per disk
     disk_act = []    # Activity % per disk
 
-    for hdd in hdd_nodes:
+    for hdd in hdd_nodes[:MAX_DISKS]:
         throughput = find_sensor_group(hdd, "Throughput")
         r_speed = 0.0
         w_speed = 0.0
@@ -718,14 +737,7 @@ def collect_hw_data(root):
                 act = val
         disk_act.append(round(act, 1))
 
-    # Timestamp: UTC Unix epoch + local timezone offset
-    import datetime
-    now_local = datetime.datetime.now(datetime.timezone.utc).astimezone()
-    utc_offset_sec = int(now_local.utcoffset().total_seconds())
-
     return {
-        "ts": int(time.time()),
-        "tzo": utc_offset_sec,
         "cpu": round(cpu_load, 1),
         "gpuload": round(gpu_load, 1),
         "cputemp": round(cpu_temp, 1),
@@ -803,12 +815,8 @@ def collect_hw_data(root):
 
 def fake_data():
     """Generate fake data for testing without LibreHardwareMonitor."""
-    import random, datetime
-    now_local = datetime.datetime.now(datetime.timezone.utc).astimezone()
-    utc_offset_sec = int(now_local.utcoffset().total_seconds())
+    import random
     return {
-        "ts": int(time.time()),
-        "tzo": utc_offset_sec,
         "cpu": round(random.uniform(5, 95), 1),
         "gpuload": round(random.uniform(0, 80), 1),
         "cputemp": round(random.uniform(35, 85), 1),
@@ -884,131 +892,184 @@ def fake_data():
     }
 
 
+def time_fields():
+    """UTC Unix time + local UTC offset, sent with every message for the standby clock."""
+    now_local = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    return {"ts": int(time.time()), "tzo": int(now_local.utcoffset().total_seconds())}
+
+
+class LhmPoller(threading.Thread):
+    """Polls LibreHardwareMonitor continuously and keeps the latest parsed data set."""
+
+    def __init__(self, url):
+        super().__init__(daemon=True)
+        self.url = url
+        self.session = requests.Session()   # keep-alive instead of a new TCP connection per poll
+        self.lock = threading.Lock()
+        self.data = None
+        self.stamp = 0.0
+        self.polls = 0
+        self.failures = 0
+        self.slowest = 0.0
+
+    def snapshot(self):
+        """(data, age in seconds) of the latest good poll, or (None, inf)."""
+        with self.lock:
+            if self.data is None:
+                return None, float("inf")
+            return self.data, time.monotonic() - self.stamp
+
+    def run(self):
+        fail_streak = 0
+        while True:
+            start = time.monotonic()
+            try:
+                resp = self.session.get(self.url, timeout=LHM_TIMEOUT)
+                resp.raise_for_status()
+                data = collect_hw_data(resp.json())
+                with self.lock:
+                    self.data = data
+                    self.stamp = time.monotonic()
+                self.polls += 1
+                self.slowest = max(self.slowest, time.monotonic() - start)
+                if fail_streak:
+                    log(f"LibreHardwareMonitor answers again (after {fail_streak} failed polls)")
+                fail_streak = 0
+            except Exception as e:  # network errors, bad JSON, unexpected sensor tree
+                self.failures += 1
+                fail_streak += 1
+                if fail_streak == 1 or fail_streak % 30 == 0:
+                    log(f"WARNING: LibreHardwareMonitor not usable ({fail_streak}x): {e}")
+                if fail_streak % 5 == 0:
+                    # Drop a possibly broken keep-alive connection
+                    self.session.close()
+                    self.session = requests.Session()
+            time.sleep(max(0.0, LHM_POLL_INTERVAL - (time.monotonic() - start)))
+
+
 def open_serial(port_name, baud):
-    """Open serial port, return (serial_obj, port_name) or (None, None)."""
+    """Open the port without toggling DTR/RTS: on ESP32 boards these lines drive
+    EN/IO0 (auto-reset), so the default open would reboot the display."""
+    ser = serial.Serial()
+    ser.port = port_name
+    ser.baudrate = baud
+    ser.timeout = 1
+    ser.write_timeout = WRITE_TIMEOUT
+    ser.dtr = False
+    ser.rts = False
     try:
-        ser = serial.Serial(port_name, baud, timeout=1)
-        print(f"\nSerial port {port_name} opened at {baud} baud")
-        return ser, port_name
-    except serial.SerialException as e:
-        print(f"\nCannot open {port_name}: {e}")
-        return None, None
+        ser.open()
+        log(f"Serial port {port_name} opened at {baud} baud")
+        return ser
+    except (serial.SerialException, OSError) as e:
+        log(f"Cannot open {port_name}: {e}")
+        return None
 
 
 def wait_for_esp32(fixed_port, baud):
-    """Wait until an ESP32 is found, return (serial_obj, port_name)."""
-    print("\nWaiting for ESP32...", end="", flush=True)
+    """Block until the ESP32 port can be opened, return the serial object."""
+    log("Waiting for ESP32...")
+    attempts = 0
     while True:
-        port = fixed_port or find_esp32_port()
+        port, desc = (fixed_port, fixed_port) if fixed_port else find_esp32_port()
         if port:
-            ser, name = open_serial(port, baud)
+            if not fixed_port and attempts == 0:
+                log(f"Found ESP32 on {port}: {desc}")
+            ser = open_serial(port, baud)
             if ser:
-                return ser, name
-        sys.stdout.write(".")
-        sys.stdout.flush()
+                return ser
+        attempts += 1
         time.sleep(2)
 
 
-def wait_for_lhm(timeout=120):
-    """Wait until LibreHardwareMonitor web server is reachable."""
-    print("Waiting for LibreHardwareMonitor...", end="", flush=True)
-    start = time.time()
-    while time.time() - start < timeout:
-        try:
-            resp = requests.get(LHM_URL, timeout=2)
-            if resp.status_code == 200:
-                print(" OK")
-                return True
-        except requests.RequestException:
-            pass
-        sys.stdout.write(".")
-        sys.stdout.flush()
-        time.sleep(3)
-    print(" TIMEOUT (will keep retrying in main loop)")
-    return False
+def build_message(poller):
+    """Latest data with its age, or a heartbeat when LHM has been silent too long."""
+    data, age = poller.snapshot()
+    if data is not None and age < STALE_LIMIT:
+        msg = dict(data)
+        msg["age"] = int(age)
+    else:
+        msg = {"hb": 1}
+    msg.update(time_fields())
+    return msg
 
 
 def main():
     parser = argparse.ArgumentParser(description="PC Hardware Monitor - Serial Sender")
     parser.add_argument("--port", help="Serial port (e.g. COM3)", default=None)
-    parser.add_argument("--test", action="store_true", help="Test mode with fake data")
+    parser.add_argument("--test", action="store_true", help="Test mode with fake data, no serial")
     parser.add_argument("--baud", type=int, default=BAUD_RATE, help="Baud rate")
+    parser.add_argument("--url", default=LHM_URL, help="LibreHardwareMonitor data.json URL")
     args = parser.parse_args()
 
-    ser = None
-    current_port = None
+    interactive = sys.stdout.isatty()
 
     if args.test:
-        print("TEST MODE - generating fake data")
-    else:
-        # Wait for LHM to be available (important for autostart after boot)
-        wait_for_lhm()
-        ser, current_port = wait_for_esp32(args.port, args.baud)
-
-    print(f"Sending data every {UPDATE_INTERVAL}s. Press Ctrl+C to stop.\n")
-
-    lhm_fail_count = 0
-
-    while True:
-        try:
-            if args.test:
-                data = fake_data()
-            else:
-                try:
-                    resp = requests.get(LHM_URL, timeout=2)
-                    lhm = resp.json()
-                    data = collect_hw_data(lhm)
-                    lhm_fail_count = 0
-                except requests.RequestException as e:
-                    lhm_fail_count += 1
-                    if lhm_fail_count <= 3 or lhm_fail_count % 30 == 0:
-                        print(f"\nWARNING: Cannot reach LHM ({lhm_fail_count}x): {e}")
-                    time.sleep(2)
-                    continue
-
-            line = json.dumps(data, separators=(",", ":")) + "\n"
-
-            if ser:
-                try:
-                    ser.write(line.encode("utf-8"))
-                except (serial.SerialException, OSError):
-                    # Connection lost — close and reconnect
-                    print(f"\nConnection lost on {current_port}!")
-                    try:
-                        ser.close()
-                    except Exception:
-                        pass
-                    ser = None
-                    ser, current_port = wait_for_esp32(args.port, args.baud)
-                    continue
-
-            elif not args.test:
-                # No serial connection — try to reconnect
-                ser, current_port = wait_for_esp32(args.port, args.baud)
-                continue
-
-            # Print to console
-            sys.stdout.write(
-                f"\rCPU:{data['cpu']:5.1f}% {data['cputemp']:4.1f}C | "
-                f"GPU:{data['gpuload']:5.1f}% {data['gputemp']:4.1f}C | "
-                f"RAM:{data['ram']:4.0f}% | "
-                f"DISK:{data['sused']:.1f}/{data['stotal']:.1f}TB | "
-                f"FAN:{data['fan1']}/{data['fan2']}  "
-            )
+        log("TEST MODE - generating fake data")
+        while True:
+            data = fake_data()
+            data.update(time_fields())
+            line = json.dumps(data, separators=(",", ":"))
+            sys.stdout.write(f"\r{len(line)} bytes | CPU:{data['cpu']:5.1f}% GPU:{data['gpuload']:5.1f}%  ")
             sys.stdout.flush()
-
             time.sleep(UPDATE_INTERVAL)
 
-        except KeyboardInterrupt:
-            print("\nStopped.")
-            break
-        except Exception as e:
-            print(f"\nERROR: {e}")
-            time.sleep(2)
+    poller = LhmPoller(args.url)
+    poller.start()
+    ser = wait_for_esp32(args.port, args.baud)
+    log(f"Sending every {UPDATE_INTERVAL}s")
 
-    if ser:
-        ser.close()
+    sent = 0
+    heartbeats = 0
+    last_status = time.monotonic()
+    next_send = time.monotonic()
+
+    while True:
+        msg = build_message(poller)
+        line = json.dumps(msg, separators=(",", ":")) + "\n"
+        try:
+            ser.write(line.encode("utf-8"))
+            sent += 1
+            heartbeats += "hb" in msg
+        except (serial.SerialException, OSError) as e:
+            # Includes SerialTimeoutException: the port stopped draining
+            log(f"Connection lost on {ser.port}: {type(e).__name__}: {e}")
+            try:
+                ser.close()
+            except Exception:
+                pass
+            time.sleep(1)
+            ser = wait_for_esp32(args.port, args.baud)
+            continue
+
+        now = time.monotonic()
+        if interactive:
+            if "hb" in msg:
+                sys.stdout.write("\rNo data from LibreHardwareMonitor - sending heartbeat          ")
+            else:
+                sys.stdout.write(
+                    f"\rCPU:{msg['cpu']:5.1f}% {msg['cputemp']:4.1f}C | "
+                    f"GPU:{msg['gpuload']:5.1f}% {msg['gputemp']:4.1f}C | "
+                    f"RAM:{msg['ram']:4.0f}% | age {msg['age']}s  "
+                )
+            sys.stdout.flush()
+        elif now - last_status >= STATUS_EVERY:
+            # Hidden mode: one summary line every 10 minutes instead of a line per message
+            log(f"Status: {sent} sent ({heartbeats} heartbeats), LHM polls {poller.polls}, "
+                f"failures {poller.failures}, slowest {poller.slowest:.1f}s")
+            poller.slowest = 0.0
+            last_status = now
+
+        next_send += UPDATE_INTERVAL
+        delay = next_send - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+        else:
+            next_send = time.monotonic()   # fell behind (e.g. after reconnect), resync
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        log("Stopped.")

@@ -97,6 +97,9 @@ void PCMonitorDisplay::init() {
     _disconnectMillis = 0;
     _dotAnimState = 0;
     _lastDotAnim = 0;
+    _standbyReason = STANDBY_NO_PC;
+    _standbyReasonDrawn = false;
+    _lastDateDay = -1;
 
     // Restore last known time from NVS (survives reboot)
     nvs.begin("hwmon", false);
@@ -244,15 +247,48 @@ void PCMonitorDisplay::drawCurrentScreen(const HWData &data) {
     }
 }
 
-void PCMonitorDisplay::showStandby() {
+void PCMonitorDisplay::showStandby(StandbyReason reason) {
     _disconnectMillis = millis();
     _screen = SCREEN_STANDBY;
     _first_draw = true;
     _dotAnimState = 0;
     _lastDotAnim = 0;
+    _standbyReason = reason;
+    _standbyReasonDrawn = false;
+    _lastDateDay = -1;
     _lcd->fillScreen(COL_STANDBY_BG);
     _lcd->setBrightness(STANDBY_BRIGHTNESS);
     drawStandbyScreen();
+}
+
+void PCMonitorDisplay::setStandbyReason(StandbyReason reason) {
+    if (reason != _standbyReason) {
+        _standbyReason = reason;
+        _standbyReasonDrawn = false;
+    }
+}
+
+void PCMonitorDisplay::drawConnectionDot(const HWData &data) {
+    // Green = fresh data, yellow = LibreHardwareMonitor is lagging (values may be a few seconds old)
+    _lcd->fillCircle(SCREEN_W - 8, 6, 4, data.data_age < 3 ? COL_GREEN : COL_YELLOW);
+}
+
+void PCMonitorDisplay::syncTime(unsigned long ts, int tzo) {
+    if (ts == 0) return;
+    _lastTimestamp = ts;
+    _tzOffset = tzo;
+    _lastTimeSyncMillis = millis();
+    _timeValid = true;
+
+    // Persist every 10 minutes so the clock survives a reboot (keeps NVS flash wear low)
+    static unsigned long lastNvsSave = 0;
+    static bool savedOnce = false;
+    if (!savedOnce || millis() - lastNvsSave > 600000UL) {
+        nvs.putULong("ts", _lastTimestamp);
+        nvs.putInt("tzo", _tzOffset);
+        lastNvsSave = millis();
+        savedOnce = true;
+    }
 }
 
 void PCMonitorDisplay::updateStandby() {
@@ -333,6 +369,11 @@ void PCMonitorDisplay::drawStandbyScreen() {
         const char* monthName = (month >= 1 && month <= 12) ? MONTHS_DE[month] : "???";
         snprintf(buf, sizeof(buf), "%s, %d. %s %d", dayName, day, monthName, year);
 
+        if (day != _lastDateDay) {
+            // New day: the date string may be shorter, clear the old one
+            _lcd->fillRect(0, 170, SCREEN_W, 24, COL_STANDBY_BG);
+            _lastDateDay = day;
+        }
         _lcd->setFont(&fonts::Font2);
         _lcd->setTextColor(COL_STANDBY_DATE, COL_STANDBY_BG);
         _lcd->drawCenterString(buf, SCREEN_W / 2, 175);
@@ -354,6 +395,17 @@ void PCMonitorDisplay::drawStandbyScreen() {
         _lcd->setFont(&fonts::Font4);
         _lcd->setTextColor(COL_STANDBY_DATE, COL_STANDBY_BG);
         _lcd->drawCenterString("--:--", SCREEN_W / 2, 110);
+    }
+
+    // === REASON HINT (bottom center, only redrawn when it changes) ===
+    if (!_standbyReasonDrawn) {
+        _lcd->fillRect(70, SCREEN_H - 30, SCREEN_W - 170, 20, COL_STANDBY_BG);
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_STANDBY_DOT, COL_STANDBY_BG);
+        _lcd->drawCenterString(_standbyReason == STANDBY_NO_LHM ? "LibreHardwareMonitor antwortet nicht"
+                                                                : "Keine Daten vom PC",
+                               SCREEN_W / 2 - 30, SCREEN_H - 26);
+        _standbyReasonDrawn = true;
     }
 
     // === THREE DOTS ANIMATION (bottom left, subtle) ===
@@ -379,6 +431,10 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
     // Debounce
     if (millis() - _lastTouchTime < TOUCH_DEBOUNCE_MS) return;
     _lastTouchTime = millis();
+
+    // Standby clock has no touch zones. Falling through to the detail-screen branch
+    // would leave standby and show a black screen until data arrives.
+    if (_screen == SCREEN_STANDBY) return;
 
     if (_screen == SCREEN_MAIN) {
         // Check "..." button (bottom right)
@@ -480,22 +536,6 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
 }
 
 void PCMonitorDisplay::update(const HWData &data) {
-    // Sync time from PC
-    if (data.pc_timestamp > 0) {
-        _lastTimestamp = data.pc_timestamp;
-        _tzOffset = data.tz_offset;
-        _lastTimeSyncMillis = millis();
-        _timeValid = true;
-
-        // Save to NVS every 30 seconds (avoid excessive flash writes)
-        static unsigned long lastNvsSave = 0;
-        if (millis() - lastNvsSave > 30000) {
-            nvs.putULong("ts", _lastTimestamp);
-            nvs.putInt("tzo", _tzOffset);
-            lastNvsSave = millis();
-        }
-    }
-
     // Coming back from standby?
     if (_screen == SCREEN_STANDBY) {
         _screen = SCREEN_MAIN;
@@ -525,13 +565,6 @@ void PCMonitorDisplay::update(const HWData &data) {
     _cpu_history[_history_idx] = data.cpu_load;
     _gpu_history[_history_idx] = data.gpu_load;
     _ram_history[_history_idx] = data.ram_percent;
-    // Normalize net speeds to 0-100 for graph (auto-scale: find max in history)
-    float maxDl = 1.0f;
-    float maxUl = 1.0f;
-    for (int i = 0; i < HISTORY_LEN; i++) {
-        if (_net_dl_history[i] > maxDl) maxDl = _net_dl_history[i];
-        if (_net_ul_history[i] > maxUl) maxUl = _net_ul_history[i];
-    }
     // Store raw KB/s values; graph will normalize when drawing
     _net_dl_history[_history_idx] = data.net_download;
     _net_ul_history[_history_idx] = data.net_upload;
@@ -716,7 +749,7 @@ void PCMonitorDisplay::drawMainScreen(const HWData &data) {
     drawAdvButton();
 
     // Connection dot (top right corner)
-    _lcd->fillCircle(SCREEN_W - 8, 6, 4, data.connected ? COL_GREEN : COL_RED);
+    drawConnectionDot(data);
 }
 
 
@@ -1527,7 +1560,7 @@ void PCMonitorDisplay::drawAdvMainScreen(const HWData &data) {
     _lcd->drawString(buf, 8, y + 2);
 
     // Connection dot
-    _lcd->fillCircle(SCREEN_W - 8, 6, 4, data.connected ? COL_GREEN : COL_RED);
+    drawConnectionDot(data);
 }
 
 
@@ -1782,15 +1815,20 @@ void PCMonitorDisplay::drawAdvGpuDetail(const HWData &data) {
     formatSpeed(data.gpu_pcie_rx, rxBuf, sizeof(rxBuf));
     formatSpeed(data.gpu_pcie_tx, txBuf, sizeof(txBuf));
 
+    // Bars auto-scale to the highest value seen since boot
+    static float peakRx = 1.0f, peakTx = 1.0f;
+    if (data.gpu_pcie_rx > peakRx) peakRx = data.gpu_pcie_rx;
+    if (data.gpu_pcie_tx > peakTx) peakTx = data.gpu_pcie_tx;
+
     snprintf(buf, sizeof(buf), "Rx: %s  ", rxBuf);
     _lcd->setTextColor(COL_GREEN, COL_BG);
     _lcd->drawString(buf, 20, y);
-    drawBar(150, y + 2, 80, 12, 0, COL_GREEN);  // placeholder
+    drawBar(150, y + 2, 80, 12, data.gpu_pcie_rx / peakRx * 100.0f, COL_GREEN);
 
     snprintf(buf, sizeof(buf), "Tx: %s  ", txBuf);
     _lcd->setTextColor(COL_CYAN, COL_BG);
     _lcd->drawString(buf, 260, y);
-    drawBar(380, y + 2, 80, 12, 0, COL_CYAN);
+    drawBar(380, y + 2, 80, 12, data.gpu_pcie_tx / peakTx * 100.0f, COL_CYAN);
     y += 24;
 
     // Divider

@@ -2,6 +2,31 @@
 
 All notable changes to this project.
 
+## [1.5.0] — 2026-09-30
+
+### Fixed
+
+- **Display fell back to the standby clock and stayed there**: The sender only transmitted after a successful LibreHardwareMonitor poll. On PCs with several HDDs a single LHM request can take seconds (SMART reads, drives spinning up), so the ESP32 received nothing for 5 s and switched to standby. LHM is now polled in a background thread; the sender transmits at a fixed 2 Hz regardless and repeats the last good data set for up to 30 s
+- **Sender could freeze forever**: `serial.write()` had no write timeout; a stalled USB-UART bridge blocked the script without any log entry. Now `write_timeout=2` plus reconnect
+- **ESP32 rebooted on every reconnect**: Opening the COM port toggled DTR/RTS (auto-reset lines). The port is now opened with both lines released
+- **Lost bytes on the ESP32**: Serial RX buffer raised from 256 bytes to 4 KB, so a screen redraw during reception no longer drops parts of a line
+- **Touch on the standby clock** left standby and showed a black screen until data arrived
+- **PCIe Rx/Tx bars** on the GPU Advanced screen were hard-wired to 0 %; they now scale to the peak seen since boot
+- **Oversized lines** are discarded instead of being parsed truncated
+- **Log file grew to gigabytes**: The status line was written to `pc_monitor.log` twice per second. In hidden mode only events with timestamps and a summary every 10 minutes are logged; the launcher rotates the log above 5 MB
+- **Wrong COM port**: Auto-detection no longer falls back to the first available port (it would send JSON to an unrelated device)
+
+### Added
+
+- **Heartbeat message** (`{"hb":1,...}`): sent when LibreHardwareMonitor has been silent for 30 s. The standby screen now names the cause: "LibreHardwareMonitor antwortet nicht" or "Keine Daten vom PC"
+- **Data age** (`age` field): the connection dot turns yellow when the shown values are older than 3 s
+- **Keep-alive HTTP session** to LibreHardwareMonitor instead of a new TCP connection per poll
+
+### Improved
+
+- Clock time is saved to NVS every 10 minutes instead of every 30 seconds (less flash wear)
+- Disk arrays capped at 8 entries (the display shows 8), storage totals still include all drives
+
 ## [1.4.0] — 2026-03-19
 
 ### Added

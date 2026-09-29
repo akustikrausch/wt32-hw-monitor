@@ -17,15 +17,28 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 PYTHON = sys.executable.replace("pythonw.exe", "python.exe")
 SCRIPT = "pc_monitor.py"
 LOG_FILE = "pc_monitor.log"
+LOG_MAX_BYTES = 5 * 1024 * 1024  # rotate to pc_monitor.log.1 above 5 MB
 STARTUP_DELAY = 15  # seconds to wait after boot
 RESTART_DELAY = 5   # seconds between restarts
+
+
+def rotate_log():
+    """Keep one previous log; older versions logged a status line twice per second
+    and grew to gigabytes."""
+    try:
+        if os.path.getsize(LOG_FILE) > LOG_MAX_BYTES:
+            os.replace(LOG_FILE, LOG_FILE + ".1")
+    except OSError:
+        pass
+
 
 # Wait for system to be ready (USB drivers, LHM, etc.)
 time.sleep(STARTUP_DELAY)
 
 while True:
+    rotate_log()
     try:
-        with open(LOG_FILE, "a") as log:
+        with open(LOG_FILE, "a", encoding="utf-8") as log:
             log.write(f"\n--- Starting {SCRIPT} at {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
             log.flush()
             proc = subprocess.Popen(

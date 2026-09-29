@@ -3,41 +3,48 @@
 #include <ArduinoJson.h>
 #include <string.h>
 
-static char lineBuf[4096];
 static int linePos = 0;
+static bool lineOverflow = false;
 
 bool serial_readLine(char *buf, int maxLen) {
     while (Serial.available()) {
         char c = Serial.read();
         if (c == '\n' || c == '\r') {
-            if (linePos > 0) {
-                lineBuf[linePos] = '\0';
-                strncpy(buf, lineBuf, maxLen - 1);
-                buf[maxLen - 1] = '\0';
-                linePos = 0;
-                return true;
-            }
+            bool complete = linePos > 0 && !lineOverflow;
+            if (complete) buf[linePos] = '\0';
+            linePos = 0;
+            lineOverflow = false;
+            if (complete) return true;
+        } else if (linePos < maxLen - 1) {
+            buf[linePos++] = c;
         } else {
-            if (linePos < (int)sizeof(lineBuf) - 1) {
-                lineBuf[linePos++] = c;
-            }
+            // Too long: discard the rest of this line instead of parsing a truncated one
+            lineOverflow = true;
         }
     }
     return false;
 }
 
-bool parseHWData(const char *json, HWData &data) {
+MsgType parseMessage(const char *json, HWData &data) {
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, json);
 
     if (err) {
         printf("JSON parse error: %s\n", err.c_str());
-        return false;
+        return MSG_INVALID;
     }
 
-    // Time sync
+    // Time sync (sent with every message)
     data.pc_timestamp = doc["ts"] | 0UL;
     data.tz_offset = doc["tzo"] | 3600;
+
+    // Heartbeat: script is running, LibreHardwareMonitor is not delivering
+    if (doc["hb"].is<int>()) {
+        return MSG_HEARTBEAT;
+    }
+
+    // Seconds since LibreHardwareMonitor last answered (0 = fresh)
+    data.data_age = doc["age"] | 0;
 
     // Main screen data
     data.cpu_load = doc["cpu"] | 0.0f;
@@ -202,6 +209,5 @@ bool parseHWData(const char *json, HWData &data) {
         data.disk_act[i] = (dact && i < (int)dact.size()) ? (dact[i] | 0.0f) : 0.0f;
     }
 
-    data.connected = true;
-    return true;
+    return MSG_DATA;
 }

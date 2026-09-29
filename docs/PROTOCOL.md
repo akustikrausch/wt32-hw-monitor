@@ -9,7 +9,7 @@ Documentation of the communication protocol between the Python script and ESP32.
 - **Format**: JSON, one line per message, `\n`-terminated
 - **Frequency**: 2 Hz (every 0.5 seconds)
 - **Direction**: PC → ESP32 only (unidirectional)
-- **Buffer Size**: 4096 bytes (ESP32 side)
+- **Buffer Size**: 4096 bytes line buffer and 4096 bytes UART RX buffer (ESP32 side)
 
 ## JSON Example
 
@@ -17,7 +17,26 @@ Documentation of the communication protocol between the Python script and ESP32.
 {"cpu":38.5,"gpuload":42.0,"cputemp":62.0,"gputemp":48.0,"cpuclk":5800,"cpupwr":170,"cpuvolt":1.280,"gpuvram":16384,"gpuvtot":32768,"gpuclk":2850,"gpumclk":12000,"gpupwr":380,"gpuhs":55,"gpufan":1450,"ram":58.0,"ramused":74.2,"ramtotal":128.0,"fan1":1100,"fan2":850,"stotal":8.0,"sused":5.8,"sfree":2.2,"dtemp":[35,38,32,36],"dname":["990PRO","T700","T500","SN850X"],"dsize":[2000,2000,2000,2000],"netdl":125.8,"netul":42.3,"netutil":0.5,"netdup":19.7,"netddl":11.2,"netname":"Ethernet 6","ccores":[38,42,55,28,62,35,48,22,58,30,45,52,40,33,50,27],"cpuname":"Ryzen 9 9950X","gpuname":"RTX 5090","ts":1741784400,"tzo":3600}
 ```
 
+## Message Types
+
+| Type | Recognized by | Sent when |
+|------|---------------|-----------|
+| Data | no `hb` field | Every 0.5 s while LibreHardwareMonitor data is at most 30 s old |
+| Heartbeat | `"hb":1` | Every 0.5 s once LibreHardwareMonitor has been silent for 30 s. Contains only `hb`, `ts`, `tzo` |
+
+The ESP32 shows the standby clock when it receives a heartbeat ("LibreHardwareMonitor antwortet nicht") or when nothing arrives for 5 s ("Keine Daten vom PC"). Lines longer than 4095 bytes are discarded.
+
+The sender polls LibreHardwareMonitor in a background thread, so a slow LHM response never delays a message. Until fresh data arrives, the last data set is repeated with a growing `age`.
+
 ## Fields
+
+### Status
+
+| Field | Type | Unit | Description |
+|-------|------|------|-------------|
+| age   | int  | s    | Age of the LibreHardwareMonitor data. The connection dot turns yellow at 3 s or more |
+| hb    | int  | —    | Present only in heartbeat messages |
+
 
 ### Main Data
 
