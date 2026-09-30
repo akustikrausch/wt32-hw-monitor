@@ -8,6 +8,7 @@ enum MsgType {
     MSG_INVALID = 0,   // not valid JSON (corrupted or truncated line)
     MSG_DATA,          // full hardware data set
     MSG_HEARTBEAT,     // PC script alive, but no fresh data from LibreHardwareMonitor
+    MSG_PROCS,         // process list
 };
 
 // Read a line from Serial buffer. Returns true if a complete line was received.
@@ -15,6 +16,6 @@ enum MsgType {
 bool serial_readLine(char *buf, int maxLen);
 
 // Parse a JSON line. Time sync fields are applied for both data and heartbeat messages.
-MsgType parseMessage(const char *json, HWData &data);
+MsgType parseMessage(const char *json, HWData &data, ProcList &procs);
 
 #endif

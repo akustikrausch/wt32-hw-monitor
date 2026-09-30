@@ -24,6 +24,7 @@ Most PC hardware monitoring solutions either require a second monitor or rely on
 - **Fan Speed Display**: System fans (motherboard) + GPU fan with RPM bars
 - **Disk Temperature Display**: Color-coded per drive (green/yellow/red)
 - **Touch Navigation**: Tap any area for a detail view, back button top-left — 7 detail screens + 5 advanced detail screens
+- **Process List**: "PROC" on the advanced screen shows the busiest programs with CPU %, RAM, GPU % and VRAM, sortable by tapping a column header (data from Windows performance counters, like Task Manager)
 - **Advanced View**: "..." button opens advanced monitoring with motherboard voltages, die temps, D3D loads, DIMM temps, disk I/O throughput
 - **Anti-Flicker Rendering**: Direct LCD updates without full-screen redraws
 - **Auto-Reconnect**: Detects USB connection loss (5s timeout), Python script survives port changes
@@ -137,7 +138,8 @@ Detailed instructions: [docs/SETUP.md](docs/SETUP.md)
 | RAM / DIMM section        | RAM Advanced Detail    |
 | Disk I/O section          | Disk I/O Detail        |
 | GPU section               | GPU Advanced Detail    |
-| MAIN button (top-right)   | Back to Main Screen    |
+| MAIN button (top-left)    | Back to Main Screen    |
+| PROC button (top-right)   | Process List           |
 
 ## Project Structure
 
@@ -154,6 +156,7 @@ wt32-hw-monitor/
 │   └── config.h            Pins, colors, layout constants
 ├── windows/
 │   ├── pc_monitor.py       Python: LHM HTTP → serial JSON
+│   ├── proc_sampler.py     Per-process CPU/RAM/GPU via Windows PDH
 │   ├── start_monitor.bat   Autostart script (console)
 │   ├── start_hidden.pyw    Hidden background launcher (no window)
 │   ├── requirements.txt    Python dependencies

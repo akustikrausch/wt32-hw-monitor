@@ -100,6 +100,8 @@ void PCMonitorDisplay::init() {
     _standbyReason = STANDBY_NO_PC;
     _standbyReasonDrawn = false;
     _lastDateDay = -1;
+    _procs = nullptr;
+    _procSort = SORT_CPU;
 
     // Restore last known time from NVS (survives reboot)
     nvs.begin("hwmon", false);
@@ -243,6 +245,7 @@ void PCMonitorDisplay::drawCurrentScreen(const HWData &data) {
         case SCREEN_ADV_GPU:     drawAdvGpuDetail(data); break;
         case SCREEN_ADV_RAM:     drawAdvRamDetail(data); break;
         case SCREEN_ADV_DISK:    drawAdvDiskDetail(data); break;
+        case SCREEN_PROCESSES:   drawProcScreen(true); break;
         default: break;
     }
 }
@@ -483,6 +486,14 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
             _lcd->fillScreen(COL_BG);
             return;
         }
+        // "PROC" button (top right) → process list
+        if (tp.x > SCREEN_W - 66 && tp.y < BACK_BTN_H + 10) {
+            _screen = SCREEN_PROCESSES;
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+            drawProcScreen(true);
+            return;
+        }
         // Tap zones on Advanced main → go to detail
         ScreenState newScreen = SCREEN_ADV_MAIN;
         if (tp.y >= 34 && tp.y < 130) {
@@ -504,6 +515,27 @@ void PCMonitorDisplay::handleTouch(const HWData &data) {
             _first_draw = true;
             _lcd->fillScreen(COL_BG);
             drawCurrentScreen(data);
+        }
+    } else if (_screen == SCREEN_PROCESSES) {
+        // Back → advanced main
+        if (tp.x < BACK_BTN_W + 10 && tp.y < BACK_BTN_H + 10) {
+            _screen = SCREEN_ADV_MAIN;
+            _first_draw = true;
+            _lcd->fillScreen(COL_BG);
+            drawAdvMainScreen(data);
+            return;
+        }
+        // Column header → sort by that column
+        if (tp.y >= 28 && tp.y < 58) {
+            ProcSort sort = _procSort;
+            if (tp.x >= 140 && tp.x < 276)      sort = SORT_CPU;
+            else if (tp.x >= 276 && tp.x < 336) sort = SORT_RAM;
+            else if (tp.x >= 336 && tp.x < 396) sort = SORT_GPU;
+            else if (tp.x >= 396)               sort = SORT_VRAM;
+            if (sort != _procSort) {
+                _procSort = sort;
+                drawProcScreen(true);
+            }
         }
     } else if (_screen >= SCREEN_ADV_MOBO && _screen <= SCREEN_ADV_DISK) {
         // Advanced detail screens: Back → ADV_MAIN, Next → cycle
@@ -558,6 +590,7 @@ void PCMonitorDisplay::update(const HWData &data) {
         case SCREEN_ADV_GPU:     drawAdvGpuDetail(data); break;
         case SCREEN_ADV_RAM:     drawAdvRamDetail(data); break;
         case SCREEN_ADV_DISK:    drawAdvDiskDetail(data); break;
+        case SCREEN_PROCESSES:   drawConnectionDot(data); break;  // table redraws on new process list
         case SCREEN_STANDBY:     break;  // handled by updateStandby()
     }
 
@@ -1356,6 +1389,12 @@ void PCMonitorDisplay::drawAdvMainScreen(const HWData &data) {
         drawSectionBar(_lcd, 4, 184, SCREEN_W - 8, "DISK I/O", COL_DIVIDER);
         drawSectionBar(_lcd, 4, 252, SCREEN_W - 8, "GPU", COL_DIVIDER);
 
+        // "PROC" button (top right) → process list
+        _lcd->fillRoundRect(SCREEN_W - 58, 4, 44, BACK_BTN_H, 4, COL_PURPLE);
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_TEXT, COL_PURPLE);
+        _lcd->drawCenterString("PROC", SCREEN_W - 36, 8);
+
         _first_draw = false;
     }
 
@@ -2077,5 +2116,134 @@ void PCMonitorDisplay::drawAdvDiskDetail(const HWData &data) {
                  data.storage_used_tb, data.storage_total_tb, sPct, data.storage_free_tb);
         _lcd->setTextColor(COL_TEXT, COL_BG);
         _lcd->drawString(buf, 10, y);
+    }
+}
+
+
+// ==================== PROCESS LIST ====================
+
+// Column layout (x): name 6 | CPU bar 150-208, value right-aligned at 268 | RAM 330 | GPU 390 | VRAM 470
+static const int PROC_ROW_Y = 58;
+static const int PROC_ROW_H = 21;
+static const int PROC_ROWS = 12;
+
+static void formatMem(int mb, char *buf, int len) {
+    if (mb <= 0)          snprintf(buf, len, "-");
+    else if (mb < 1000)   snprintf(buf, len, "%dM", mb);
+    else if (mb < 10000)  snprintf(buf, len, "%.1fG", mb / 1024.0f);
+    else                  snprintf(buf, len, "%.0fG", mb / 1024.0f);
+}
+
+static float procKey(const ProcEntry &e, ProcSort sort) {
+    switch (sort) {
+        case SORT_RAM:  return (float)e.ram_mb;
+        case SORT_GPU:  return (float)e.gpu;
+        case SORT_VRAM: return (float)e.vram_mb;
+        default:        return e.cpu;
+    }
+}
+
+void PCMonitorDisplay::updateProcs() {
+    if (_screen == SCREEN_PROCESSES) drawProcScreen(false);
+}
+
+void PCMonitorDisplay::drawProcScreen(bool full) {
+    char buf[32];
+
+    if (_first_draw) {
+        _lcd->fillScreen(COL_BG);
+        drawBackButton();
+        _lcd->setFont(&fonts::Font4);
+        _lcd->setTextColor(COL_VIOLET, COL_BG);
+        _lcd->drawCenterString("PROCESSES", SCREEN_W / 2, 4);
+        _first_draw = false;
+        full = true;
+    }
+
+    // Column header: tap to sort, active column white with an accent underline
+    if (full) {
+        _lcd->fillRect(0, 30, SCREEN_W, 26, COL_BG);
+        struct { const char *label; int x; bool right; ProcSort sort; uint16_t accent; } cols[] = {
+            {"CPU",  150, false, SORT_CPU,  COL_CYAN},
+            {"RAM",  330, true,  SORT_RAM,  COL_YELLOW},
+            {"GPU",  390, true,  SORT_GPU,  COL_GREEN},
+            {"VRAM", 470, true,  SORT_VRAM, COL_GREEN},
+        };
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_LABEL, COL_BG);
+        _lcd->drawString("Name", 6, 34);
+        for (auto &c : cols) {
+            bool active = c.sort == _procSort;
+            _lcd->setTextColor(active ? COL_TEXT : COL_LABEL, COL_BG);
+            int w = _lcd->textWidth(c.label);
+            int x0 = c.right ? c.x - w : c.x;
+            _lcd->drawString(c.label, x0, 34);
+            if (active) _lcd->fillRect(x0, 51, w, 2, c.accent);
+        }
+        _lcd->drawFastHLine(4, 55, SCREEN_W - 8, COL_DIVIDER);
+    }
+
+    if (!_procs || !_procs->valid || _procs->n == 0) {
+        _lcd->setFont(&fonts::Font2);
+        _lcd->setTextColor(COL_LABEL, COL_BG);
+        _lcd->drawCenterString("Warte auf Prozessliste...", SCREEN_W / 2, 150);
+        return;
+    }
+
+    // Sort indices by the active column (descending), list is at most 36 entries
+    int idx[MAX_PROCS];
+    int n = _procs->n;
+    for (int i = 0; i < n; i++) idx[i] = i;
+    for (int i = 1; i < n; i++) {
+        int v = idx[i];
+        float key = procKey(_procs->e[v], _procSort);
+        int j = i - 1;
+        while (j >= 0 && procKey(_procs->e[idx[j]], _procSort) < key) {
+            idx[j + 1] = idx[j];
+            j--;
+        }
+        idx[j + 1] = v;
+    }
+
+    // CPU bars are relative to the busiest process, so small loads stay visible
+    float maxCpu = 1.0f;
+    for (int i = 0; i < n; i++)
+        if (_procs->e[i].cpu > maxCpu) maxCpu = _procs->e[i].cpu;
+
+    _lcd->setFont(&fonts::Font2);
+    for (int r = 0; r < PROC_ROWS; r++) {
+        int y = PROC_ROW_Y + r * PROC_ROW_H;
+        _lcd->fillRect(0, y, SCREEN_W, PROC_ROW_H, COL_BG);
+        if (r >= n) continue;
+        const ProcEntry &e = _procs->e[idx[r]];
+        int ty = y + 3;
+
+        // Name, with the number of processes when grouped
+        if (e.count > 1) snprintf(buf, sizeof(buf), "%.11s (%d)", e.name, e.count);
+        else             snprintf(buf, sizeof(buf), "%s", e.name);
+        _lcd->setTextColor(COL_TEXT, COL_BG);
+        _lcd->drawString(buf, 6, ty);
+
+        // CPU: bar + value
+        drawBar(150, y + 6, 58, 10, e.cpu / maxCpu * 100.0f, COL_CYAN);
+        snprintf(buf, sizeof(buf), "%.1f%%", e.cpu);
+        _lcd->setTextColor(_procSort == SORT_CPU ? COL_CYAN : (e.cpu < 0.05f ? COL_DIVIDER : COL_TEXT), COL_BG);
+        _lcd->drawRightString(buf, 268, ty);
+
+        // RAM
+        formatMem(e.ram_mb, buf, sizeof(buf));
+        _lcd->setTextColor(_procSort == SORT_RAM ? COL_YELLOW : COL_TEXT, COL_BG);
+        _lcd->drawRightString(buf, 330, ty);
+
+        // GPU
+        if (e.gpu > 0) snprintf(buf, sizeof(buf), "%d%%", e.gpu);
+        else           snprintf(buf, sizeof(buf), "-");
+        _lcd->setTextColor(_procSort == SORT_GPU ? COL_GREEN : (e.gpu > 0 ? COL_TEXT : COL_DIVIDER), COL_BG);
+        _lcd->drawRightString(buf, 390, ty);
+
+        // VRAM
+        formatMem(e.vram_mb, buf, sizeof(buf));
+        _lcd->setTextColor(_procSort == SORT_VRAM ? COL_GREEN : (e.vram_mb > 0 ? COL_TEXT : COL_DIVIDER), COL_BG);
+        _lcd->drawRightString(buf, 470, ty);
     }
 }

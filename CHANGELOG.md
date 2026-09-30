@@ -2,6 +2,14 @@
 
 All notable changes to this project.
 
+## [1.6.0] — 2026-09-30
+
+### Added
+
+- **Process list screen**: "PROC" button on the advanced main screen opens a list of the busiest programs with CPU %, RAM, GPU % and VRAM. Tap a column header to sort by it (default: CPU). Processes with the same name are grouped, the number of processes is shown in brackets
+- **Process data in the sender**: per-process usage is read from the Windows performance counters (PDH), the same source Task Manager uses. One query covers all processes (about 30 ms on 650 processes, 0.05 % CPU). New module `windows/proc_sampler.py`, ctypes only, no new packages
+- Protocol: process list message (`pr`), sent every 2 s as its own line
+
 ## [1.5.0] — 2026-09-30
 
 ### Fixed

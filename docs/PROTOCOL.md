@@ -22,6 +22,7 @@ Documentation of the communication protocol between the Python script and ESP32.
 | Type | Recognized by | Sent when |
 |------|---------------|-----------|
 | Data | no `hb` field | Every 0.5 s while LibreHardwareMonitor data is at most 30 s old |
+| Process list | `pr` array | Every 2 s as an extra line (Windows only). Contains only `pr`, `ts`, `tzo` |
 | Heartbeat | `"hb":1` | Every 0.5 s once LibreHardwareMonitor has been silent for 30 s. Contains only `hb`, `ts`, `tzo` |
 
 The ESP32 shows the standby clock when it receives a heartbeat ("LibreHardwareMonitor antwortet nicht") or when nothing arrives for 5 s ("Keine Daten vom PC"). Lines longer than 4095 bytes are discarded.
@@ -29,6 +30,21 @@ The ESP32 shows the standby clock when it receives a heartbeat ("LibreHardwareMo
 The sender polls LibreHardwareMonitor in a background thread, so a slow LHM response never delays a message. Until fresh data arrives, the last data set is repeated with a growing `age`.
 
 ## Fields
+
+### Process List
+
+`pr` is an array of rows `[name, count, cpu, ram, gpu, vram]`:
+
+| Index | Type   | Unit      | Description |
+|-------|--------|-----------|-------------|
+| 0     | string | —         | Process name, ASCII, max 15 characters |
+| 1     | int    | —         | Number of processes with this name (grouped) |
+| 2     | int    | 0.1 %     | CPU usage, share of the whole machine (e.g. 125 = 12.5 %) |
+| 3     | int    | MB        | Private working set |
+| 4     | int    | %         | GPU usage (busiest engine, like Task Manager) |
+| 5     | int    | MB        | Dedicated GPU memory |
+
+The list is the union of the top 12 by CPU, by RAM and by GPU (up to 36 rows, about 1 KB), so the display can re-sort by any column without a back channel.
 
 ### Status
 

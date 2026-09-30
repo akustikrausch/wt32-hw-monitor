@@ -19,6 +19,7 @@ enum ScreenState {
     SCREEN_ADV_GPU,
     SCREEN_ADV_RAM,
     SCREEN_ADV_DISK,
+    SCREEN_PROCESSES,   // process list (opened from the advanced main screen)
     SCREEN_STANDBY,
 };
 
@@ -122,6 +123,25 @@ struct HWData {
     int   data_age;       // Seconds since LibreHardwareMonitor last answered (0 = fresh)
 };
 
+// Process list from the PC: top 12 by CPU, RAM and GPU merged (up to 36 names)
+#define MAX_PROCS 36
+struct ProcEntry {
+    char  name[16];
+    int   count;      // processes with this name
+    float cpu;        // % of the whole machine
+    int   ram_mb;     // private working set
+    int   gpu;        // % (busiest GPU engine)
+    int   vram_mb;    // dedicated GPU memory
+};
+
+struct ProcList {
+    ProcEntry e[MAX_PROCS];
+    int n;
+    bool valid;       // at least one list received
+};
+
+enum ProcSort { SORT_CPU = 0, SORT_RAM, SORT_GPU, SORT_VRAM };
+
 // Display class for WT32-SC01 (ST7796S 480x320)
 class PCMonitorDisplay {
 public:
@@ -132,6 +152,8 @@ public:
     void setStandbyReason(StandbyReason reason);
     void updateStandby();
     void handleTouch(const HWData &data);
+    void setProcList(const ProcList *procs) { _procs = procs; }
+    void updateProcs();   // new process list arrived
     ScreenState getScreen() { return _screen; }
     bool isStandby() { return _screen == SCREEN_STANDBY; }
 
@@ -160,6 +182,7 @@ private:
     void drawAdvGpuDetail(const HWData &data);
     void drawAdvRamDetail(const HWData &data);
     void drawAdvDiskDetail(const HWData &data);
+    void drawProcScreen(bool full);
     void drawCurrentScreen(const HWData &data);
 
     lgfx::LGFX_Device *_lcd;
@@ -184,6 +207,8 @@ private:
     bool          _timeValid;           // Have we ever received a timestamp?
     int           _dotAnimState;        // Dot animation frame (0-3)
     unsigned long _lastDotAnim;         // Last dot animation update
+    const ProcList *_procs;
+    ProcSort      _procSort;
     StandbyReason _standbyReason;
     bool          _standbyReasonDrawn;  // Hint line needs redraw?
     int           _lastDateDay;         // Redraw/clear date line only when the day changes

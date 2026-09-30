@@ -4,6 +4,7 @@
 #include "parser.h"
 
 static HWData hwData;
+static ProcList procList;
 static unsigned long lastLinkTime = 0;   // last valid message of any kind from the PC
 static const unsigned long LINK_TIMEOUT_MS = 5000;  // 5 sec without any message = PC gone
 static char jsonBuf[4096];
@@ -23,6 +24,7 @@ void setup() {
     strncpy(hwData.gpu_name, "---", sizeof(hwData.gpu_name));
 
     display.init();
+    display.setProcList(&procList);
     display.showStandby(STANDBY_NO_PC);
 
     printf("Ready. Waiting for serial data...\n");
@@ -31,7 +33,7 @@ void setup() {
 void loop() {
     // Try to read a complete JSON line from serial
     if (serial_readLine(jsonBuf, sizeof(jsonBuf))) {
-        MsgType msg = parseMessage(jsonBuf, hwData);
+        MsgType msg = parseMessage(jsonBuf, hwData, procList);
         if (msg != MSG_INVALID) {
             lastLinkTime = millis();
             display.syncTime(hwData.pc_timestamp, hwData.tz_offset);
@@ -39,6 +41,8 @@ void loop() {
 
         if (msg == MSG_DATA) {
             display.update(hwData);
+        } else if (msg == MSG_PROCS) {
+            display.updateProcs();
         } else if (msg == MSG_HEARTBEAT) {
             // The script only sends heartbeats once LibreHardwareMonitor has been silent for a while
             if (display.isStandby()) {

@@ -42,6 +42,9 @@ STALE_LIMIT = 30           # seconds: after this, send heartbeats instead of old
 WRITE_TIMEOUT = 2          # seconds: a blocked COM port must never freeze the sender
 STATUS_EVERY = 600         # seconds between status lines when not running in a console
 MAX_DISKS = 8              # the ESP32 displays up to 8 drives
+PROC_INTERVAL = 2.0        # seconds between process list messages
+PROC_TOP = 12              # top N per column (CPU, RAM, GPU), merged
+PROC_NAME_LEN = 15         # the ESP32 name column fits 15 characters
 
 # USB-UART bridges used on ESP32 boards: Silicon Labs CP210x, WCH CH340/CH343
 ESP32_USB_VIDS = {0x10C4, 0x1A86}
@@ -947,6 +950,48 @@ class LhmPoller(threading.Thread):
             time.sleep(max(0.0, LHM_POLL_INTERVAL - (time.monotonic() - start)))
 
 
+class ProcPoller(threading.Thread):
+    """Samples per-process usage every PROC_INTERVAL seconds (Windows only)."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.lock = threading.Lock()
+        self.rows = None
+        self.stamp = 0.0
+
+    def snapshot(self):
+        with self.lock:
+            return self.rows, time.monotonic() - self.stamp
+
+    def run(self):
+        try:
+            from proc_sampler import ProcessSampler, top_union
+            sampler = ProcessSampler()
+        except Exception as e:
+            log(f"WARNING: process list not available: {e}")
+            return
+        while True:
+            time.sleep(PROC_INTERVAL)
+            try:
+                rows = top_union(sampler.sample(), PROC_TOP)
+            except Exception as e:
+                log(f"WARNING: process sampling failed: {e}")
+                continue
+            with self.lock:
+                self.rows = rows
+                self.stamp = time.monotonic()
+
+
+def build_proc_message(rows):
+    """{"pr": [[name, count, cpu x10, ram MB, gpu %, vram MB], ...]}; about 1 KB."""
+    # ASCII only: the display fonts have no umlauts, and a cut UTF-8 sequence would break the name
+    pr = [[g["name"].encode("ascii", "replace").decode()[:PROC_NAME_LEN], g["count"], round(g["cpu"] * 10), round(g["ram"] / 2**20),
+           round(g["gpu"]), round(g["vram"] / 2**20)] for g in rows]
+    msg = {"pr": pr}
+    msg.update(time_fields())
+    return msg
+
+
 def open_serial(port_name, baud):
     """Open the port without toggling DTR/RTS: on ESP32 boards these lines drive
     EN/IO0 (auto-reset), so the default open would reboot the display."""
@@ -1016,6 +1061,9 @@ def main():
 
     poller = LhmPoller(args.url)
     poller.start()
+    procs = ProcPoller()
+    procs.start()
+    last_proc_sent = 0.0
     ser = wait_for_esp32(args.port, args.baud)
     log(f"Sending every {UPDATE_INTERVAL}s")
 
@@ -1027,6 +1075,10 @@ def main():
     while True:
         msg = build_message(poller)
         line = json.dumps(msg, separators=(",", ":")) + "\n"
+        rows, proc_age = procs.snapshot()
+        if rows is not None and proc_age < 10 and procs.stamp > last_proc_sent:
+            line += json.dumps(build_proc_message(rows), separators=(",", ":")) + "\n"
+            last_proc_sent = procs.stamp
         try:
             ser.write(line.encode("utf-8"))
             sent += 1

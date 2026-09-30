@@ -25,7 +25,7 @@ bool serial_readLine(char *buf, int maxLen) {
     return false;
 }
 
-MsgType parseMessage(const char *json, HWData &data) {
+MsgType parseMessage(const char *json, HWData &data, ProcList &procs) {
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, json);
 
@@ -37,6 +37,26 @@ MsgType parseMessage(const char *json, HWData &data) {
     // Time sync (sent with every message)
     data.pc_timestamp = doc["ts"] | 0UL;
     data.tz_offset = doc["tzo"] | 3600;
+
+    // Process list: [[name, count, cpu x10, ram MB, gpu %, vram MB], ...]
+    JsonArray pr = doc["pr"];
+    if (pr) {
+        procs.n = 0;
+        for (JsonArray row : pr) {
+            if (procs.n >= MAX_PROCS) break;
+            ProcEntry &e = procs.e[procs.n++];
+            const char *name = row[0] | "?";
+            strncpy(e.name, name, sizeof(e.name) - 1);
+            e.name[sizeof(e.name) - 1] = '\0';
+            e.count = row[1] | 1;
+            e.cpu = (row[2] | 0) / 10.0f;
+            e.ram_mb = row[3] | 0;
+            e.gpu = row[4] | 0;
+            e.vram_mb = row[5] | 0;
+        }
+        procs.valid = true;
+        return MSG_PROCS;
+    }
 
     // Heartbeat: script is running, LibreHardwareMonitor is not delivering
     if (doc["hb"].is<int>()) {
